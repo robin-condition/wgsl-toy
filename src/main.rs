@@ -1,6 +1,6 @@
-use leptos::{html::Canvas, prelude::*, task::spawn_local};
+use leptos::{html::Canvas, prelude::*, svg::text, task::spawn_local};
 use reactive_stores::Store;
-use wgpu::{BackendOptions, Backends, SurfaceConfiguration, SurfaceTarget};
+use wgpu::{util::TextureBlitterBuilder, BackendOptions, Backends, SurfaceConfiguration, SurfaceTarget};
 //use wgpu::*;
 
 
@@ -66,6 +66,52 @@ fn App() -> impl IntoView {
                 };
 
                 surface.configure(&device, &surface_config);
+                
+                let text_view = {
+                    // https://sotrh.github.io/learn-wgpu/beginner/tutorial5-textures/#loading-an-image-from-a-file
+
+                    let bytes = include_bytes!("wgsl-hi.png");
+                    let img = image::load_from_memory(bytes).unwrap();
+                    let rgba = img.to_rgba8();
+                    
+                    let dimensions = rgba.dimensions();
+
+                    let tex_size = wgpu::Extent3d {
+                        width: dimensions.0,
+                        height: dimensions.1,
+
+                        depth_or_array_layers: 1
+                    };
+
+                    let texture = device.create_texture(&wgpu::TextureDescriptor {
+                        size: tex_size,
+                        mip_level_count: 1,
+                        sample_count: 1,
+                        dimension: wgpu::TextureDimension::D2,
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        label: Some("hi_tex"),
+                        view_formats: &[]
+                    });
+
+                    queue.write_texture(wgpu::TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+
+                    }, &rgba,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * dimensions.0),
+                        rows_per_image: Some(dimensions.1)
+                    },
+                    tex_size
+                    );
+
+                    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                    view
+                };
 
                 // render
 
@@ -106,6 +152,11 @@ fn App() -> impl IntoView {
 
         // End the renderpass.
         drop(renderpass);
+
+        TextureBlitterBuilder::new(&device, surface_format.add_srgb_suffix())
+        .sample_type(wgpu::FilterMode::Linear)
+        .build()
+        .copy(&device, &mut encoder, &text_view, &texture_view);
 
         // Submit the command in the queue to execute
         queue.submit([encoder.finish()]);
