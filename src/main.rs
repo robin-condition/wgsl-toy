@@ -1,5 +1,6 @@
-use leptos::{html::Canvas, prelude::*, svg::text, task::spawn_local};
+use leptos::{html::Canvas, logging, prelude::*, svg::text, task::spawn_local};
 use reactive_stores::Store;
+use web_sys::console;
 use wgpu::{util::TextureBlitterBuilder, BackendOptions, Backends, SurfaceConfiguration, SurfaceTarget};
 //use wgpu::*;
 
@@ -54,6 +55,8 @@ fn App() -> impl IntoView {
                 let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
+                let module = device.create_shader_module(wgpu::include_wgsl!("compute.wgsl"));
+
                 let surface_config = SurfaceConfiguration{
                     usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                     format: surface_format,
@@ -67,7 +70,6 @@ fn App() -> impl IntoView {
 
                 surface.configure(&device, &surface_config);
                 
-                let text_view = {
                     // https://sotrh.github.io/learn-wgpu/beginner/tutorial5-textures/#loading-an-image-from-a-file
 
                     let bytes = include_bytes!("wgsl-hi.png");
@@ -88,8 +90,10 @@ fn App() -> impl IntoView {
                         mip_level_count: 1,
                         sample_count: 1,
                         dimension: wgpu::TextureDimension::D2,
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        usage: wgpu::TextureUsages::TEXTURE_BINDING
+                                | wgpu::TextureUsages::COPY_DST
+                                | wgpu::TextureUsages::STORAGE_BINDING,
                         label: Some("hi_tex"),
                         view_formats: &[]
                     });
@@ -110,8 +114,53 @@ fn App() -> impl IntoView {
                     );
 
                     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-                    view
-                };
+
+
+                        // https://github.com/gfx-rs/wgpu/blob/trunk/examples/standalone/01_hello_compute/src/main.rs
+                        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                            label: Some("Compute Inputs"),
+                            entries: &[
+                                // https://www.reddit.com/r/wgpu/comments/x5z4tb/comment/in42y6p/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+                                wgpu::BindGroupLayoutEntry {
+                                    binding: 0,
+                                    visibility: wgpu::ShaderStages::COMPUTE,
+                                    ty: wgpu::BindingType::StorageTexture {
+                                        access: wgpu::StorageTextureAccess::WriteOnly,
+                                        format: wgpu::TextureFormat::Rgba8Unorm,
+                                        view_dimension: wgpu::TextureViewDimension::D2
+                                    },
+                                    count: None
+                                }
+                            ]
+                        });
+
+
+
+                        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: Some("Bind group"),
+                            layout: &bind_group_layout,
+                            entries: &[
+                                wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::TextureView(&view)
+                                }
+                            ]
+                        });
+
+                        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor{
+                            label: Some("pipelin elaouyt"),
+                            bind_group_layouts: &[&bind_group_layout],
+                            push_constant_ranges: &[]
+                        });
+
+                        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                            label: None,
+                            layout: Some(&pipeline_layout),
+                            module: &module,
+                            entry_point: Some("main"),
+                            compilation_options: wgpu::PipelineCompilationOptions::default(),
+                            cache: None
+                        });
 
                 // render
 
@@ -130,6 +179,8 @@ fn App() -> impl IntoView {
 
         // Renders a GREEN screen
         let mut encoder = device.create_command_encoder(&Default::default());
+        
+        /*
         // Create the renderpass which will clear the screen.
         let renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -152,15 +203,34 @@ fn App() -> impl IntoView {
 
         // End the renderpass.
         drop(renderpass);
+        */
+        let mut computepass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("MyPass"),
+            timestamp_writes: None
+        });
+
+        computepass.set_pipeline(&pipeline);
+
+        computepass.set_bind_group(0, &bind_group, &[]);
+
+        let workgroup_size = (16, 16);
+
+        let workgroup_counts = (dimensions.0.div_ceil(workgroup_size.0), dimensions.1.div_ceil(workgroup_size.1));
+        logging::log!("counts: {:?}", workgroup_counts);
+        logging::log!("img size: {:?}", dimensions);
+        computepass.dispatch_workgroups(workgroup_counts.0, workgroup_counts.1, 1);
+
+        drop(computepass);
 
         TextureBlitterBuilder::new(&device, surface_format.add_srgb_suffix())
         .sample_type(wgpu::FilterMode::Linear)
         .build()
-        .copy(&device, &mut encoder, &text_view, &texture_view);
+        .copy(&device, &mut encoder, &view, &texture_view);
 
         // Submit the command in the queue to execute
         queue.submit([encoder.finish()]);
         //window.pre_present_notify();
+        
         surface_texture.present();
             }
         );
