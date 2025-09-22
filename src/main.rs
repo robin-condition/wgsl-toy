@@ -1,8 +1,9 @@
-use leptos::{html::Canvas, logging, prelude::*, svg::text, task::spawn_local};
+use leptos::{html::Canvas, logging, prelude::*, task::spawn_local};
 use reactive_stores::Store;
-use web_sys::console;
-use wgpu::{util::TextureBlitterBuilder, BackendOptions, Backends, SurfaceConfiguration, SurfaceTarget};
-//use wgpu::*;
+use wgpu::{util::TextureBlitterBuilder, SurfaceConfiguration, SurfaceTarget};
+
+use crate::codemirror_leptos::CodeMirrorEditor;
+pub mod codemirror_leptos;
 
 
 #[derive(Debug, Default, Store)]
@@ -250,6 +251,7 @@ fn App() -> impl IntoView {
         </p>
         <canvas width=500 height=500 node_ref=node_ref>
         </canvas>
+        <CodeMirrorEditor/>
     }
 }
 
