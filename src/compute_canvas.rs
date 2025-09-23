@@ -1,14 +1,28 @@
 use std::borrow::Cow;
 
-use leptos::{html::Canvas, logging, prelude::*};
+use leptos::{html::Canvas, logging, prelude::*, reactive::spawn_local};
 use web_sys::HtmlCanvasElement;
 use wgpu::{
     ShaderModuleDescriptor, SurfaceConfiguration, SurfaceTarget, util::TextureBlitterBuilder,
 };
 
-struct GPUPrepState {}
+struct GPUPrepState<'a> {
+    surface: wgpu::Surface<'a>,
+    device: wgpu::Device,
+    queue: wgpu::Queue,
+    surface_format: wgpu::TextureFormat,
+    dimensions: (u32, u32),
+    view: wgpu::TextureView,
+    bind_group: wgpu::BindGroup,
+    pipeline_layout: wgpu::PipelineLayout,
+    blitter: wgpu::util::TextureBlitter,
+}
 
-async fn do_prep(node: HtmlCanvasElement) -> GPUPrepState {
+struct ShaderCallPrep {
+    pipeline: wgpu::ComputePipeline,
+}
+
+async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         //backends: Backends::GL,
         //flags: todo!(),
@@ -39,11 +53,6 @@ async fn do_prep(node: HtmlCanvasElement) -> GPUPrepState {
 
     let cap = surface.get_capabilities(&adapter);
     let surface_format = cap.formats[0];
-
-    let module = device.create_shader_module(ShaderModuleDescriptor {
-        label: None,
-        source: wgpu::ShaderSource::Wgsl(Cow::Owned("".to_owned())),
-    });
 
     let surface_config = SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
@@ -137,18 +146,48 @@ async fn do_prep(node: HtmlCanvasElement) -> GPUPrepState {
         push_constant_ranges: &[],
     });
 
-    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+    // render, queue: wgpu::Queue
+
+    let blitter = TextureBlitterBuilder::new(&device, surface_format.add_srgb_suffix())
+        .sample_type(wgpu::FilterMode::Linear)
+        .build();
+
+    GPUPrepState {
+        surface,
+        device,
+        queue,
+        surface_format,
+        dimensions,
+        view,
+        bind_group,
+        pipeline_layout,
+        blitter,
+    }
+}
+
+fn prep_shader(prep: &GPUPrepState, shader_text: String) -> ShaderCallPrep {
+    let module = prep.device.create_shader_module(ShaderModuleDescriptor {
         label: None,
-        layout: Some(&pipeline_layout),
-        module: &module,
-        entry_point: Some("main"),
-        compilation_options: wgpu::PipelineCompilationOptions::default(),
-        cache: None,
+        source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
     });
 
-    // render
+    let pipeline = prep
+        .device
+        .create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: Some(&prep.pipeline_layout),
+            module: &module,
+            entry_point: Some("main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
 
-    let surface_texture = surface
+    ShaderCallPrep { pipeline }
+}
+
+fn do_shader(gpu_prep: &GPUPrepState, shader_prep: &ShaderCallPrep) {
+    let surface_texture = gpu_prep
+        .surface
         .get_current_texture()
         .expect("failed to acquire next swapchain texture");
     let texture_view = surface_texture
@@ -156,45 +195,45 @@ async fn do_prep(node: HtmlCanvasElement) -> GPUPrepState {
         .create_view(&wgpu::TextureViewDescriptor {
             // Without add_srgb_suffix() the image we will be working with
             // might not be "gamma correct".
-            format: Some(surface_format.add_srgb_suffix()),
+            format: Some(gpu_prep.surface_format.add_srgb_suffix()),
             ..Default::default()
         });
 
-    let mut encoder = device.create_command_encoder(&Default::default());
+    let mut encoder = gpu_prep.device.create_command_encoder(&Default::default());
 
     let mut computepass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
         label: Some("MyPass"),
         timestamp_writes: None,
     });
 
-    computepass.set_pipeline(&pipeline);
+    computepass.set_pipeline(&shader_prep.pipeline);
 
-    computepass.set_bind_group(0, &bind_group, &[]);
+    computepass.set_bind_group(0, &gpu_prep.bind_group, &[]);
 
     let workgroup_size = (16, 16);
 
     let workgroup_counts = (
-        dimensions.0.div_ceil(workgroup_size.0),
-        dimensions.1.div_ceil(workgroup_size.1),
+        gpu_prep.dimensions.0.div_ceil(workgroup_size.0),
+        gpu_prep.dimensions.1.div_ceil(workgroup_size.1),
     );
     logging::log!("counts: {:?}", workgroup_counts);
-    logging::log!("img size: {:?}", dimensions);
+    logging::log!("img size: {:?}", gpu_prep.dimensions);
     computepass.dispatch_workgroups(workgroup_counts.0, workgroup_counts.1, 1);
 
     drop(computepass);
 
-    TextureBlitterBuilder::new(&device, surface_format.add_srgb_suffix())
-        .sample_type(wgpu::FilterMode::Linear)
-        .build()
-        .copy(&device, &mut encoder, &view, &texture_view);
+    gpu_prep.blitter.copy(
+        &gpu_prep.device,
+        &mut encoder,
+        &gpu_prep.view,
+        &texture_view,
+    );
 
     // Submit the command in the queue to execute
-    queue.submit([encoder.finish()]);
+    gpu_prep.queue.submit([encoder.finish()]);
     //window.pre_present_notify();
 
     surface_texture.present();
-
-    GPUPrepState {}
 }
 
 #[component]
@@ -208,12 +247,38 @@ pub fn ComputeCanvas(
     let (prep_state, set_prep_state) = signal_local(None);
     let prep_done = move || prep_state.read().is_some();
 
+    let (shader_prep, set_shader_prep) = signal_local(None);
+    let shader_prep_done = move || shader_prep.read().is_some();
+
     Effect::new(move |_| {
         if let Some(node) = node_ref.get() {
             if !prep_done() {
-                set_prep_state.set(Some(do_prep(node)));
+                logging::log!("Doing GPU prep!");
+                spawn_local(async move {
+                    set_prep_state.set(Some(prep_wgpu(node).await));
+                });
             }
             // https://github.com/gfx-rs/wgpu/blob/trunk/examples/standalone/02_hello_window/src/main.rs
+        }
+    });
+
+    Effect::new(move || {
+        if prep_done() {
+            logging::log!("Recompiling shaders.");
+            set_shader_prep.set(Some(prep_shader(
+                prep_state.read().as_ref().unwrap(),
+                shader_text.get(),
+            )));
+        }
+    });
+
+    Effect::new(move || {
+        if shader_prep_done() {
+            logging::log!("Re shading!");
+            do_shader(
+                prep_state.read().as_ref().unwrap(),
+                shader_prep.read().as_ref().unwrap(),
+            );
         }
     });
 
