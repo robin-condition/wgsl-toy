@@ -26,14 +26,17 @@ fn prepare_pipeline_signal(
 
 #[component]
 pub fn ShaderEditor() -> impl IntoView {
-    let starting_text: String = include_str!("compute.wgsl").to_owned();
+    let (starting_text, set_starting_text) = signal(include_str!("compute.wgsl").to_owned());
 
-    let size: (u32, u32) = (500u32, 500u32);
+    let size = (500u32, 500u32);
 
     let (gpu_prep, set_gpu_prep) = signal_local(None);
 
-    let (text, set_text) = signal(starting_text.clone());
-    let pipeline_prep = prepare_pipeline_signal(gpu_prep, text.into());
+    let (editor_text, set_editor_text) = signal(starting_text.get());
+
+    let (shader_text, set_shader_text) = signal(starting_text.get());
+
+    let pipeline_prep = prepare_pipeline_signal(gpu_prep, shader_text.into());
 
     Effect::new(move || {
         if gpu_prep.read().is_some() && pipeline_prep.read().is_some() {
@@ -45,12 +48,22 @@ pub fn ShaderEditor() -> impl IntoView {
         }
     });
 
+    Effect::new(move || {
+        let _ = editor_text.read();
+        set_shader_text.set(editor_text.get());
+        logging::log!("Updated!");
+    });
+
     view! {
         <ComputeCanvas size set_prep_state=set_gpu_prep />
         <CodeMirrorEditor
             start_text=starting_text
-            set_text
-            on_save=move |a| { logging::log!("On save callback!") }
+            update_every=500
+            read_cur_editor_text=editor_text
+            set_editor_text=set_editor_text
+            on_save=move |a| {
+                logging::log!("On save callback!");
+            }
         />
     }
 }

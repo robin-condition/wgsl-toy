@@ -11,6 +11,9 @@ extern "C" {
 
     #[wasm_bindgen]
     fn GetEditorText(editor: &EditorView) -> String;
+
+    #[wasm_bindgen]
+    fn SetEditorText(editor: &EditorView, s: &str);
 }
 
 #[wasm_bindgen]
@@ -21,4 +24,9 @@ pub fn make_wgsl_editor(parent_component: &HtmlElement, contents: &str) -> Edito
 #[wasm_bindgen]
 pub fn get_editor_text(editor: &EditorView) -> String {
     return GetEditorText(editor);
+}
+
+#[wasm_bindgen]
+pub fn set_editor_text(editor: &EditorView, contents: &str) {
+    SetEditorText(editor, contents);
 }
