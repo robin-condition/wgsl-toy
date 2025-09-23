@@ -11,8 +11,8 @@ fn App() -> impl IntoView {
     let (text, set_text) = signal(starting_text.clone());
 
     view! {
-        <ComputeCanvas size=(500u32, 500u32) shader_text=text/>
-        <CodeMirrorEditor start_text=starting_text set_text/>
+        <ComputeCanvas size=(500u32, 500u32) shader_text=text />
+        <CodeMirrorEditor start_text=starting_text set_text />
     }
 }
 

@@ -1,12 +1,5 @@
 use codemirror_wgsl;
-use leptos::{
-    IntoView, component,
-    ev::{EventDescriptor, keydown},
-    html::Div,
-    logging,
-    prelude::*,
-    view,
-};
+use leptos::{IntoView, component, ev::keydown, html::Div, logging, prelude::*, view};
 use leptos_use::{use_document, use_event_listener};
 
 #[component]
@@ -43,11 +36,10 @@ pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> im
 
     view! {
         <div>
-        <button on:click= move |_| {
+            <button on:click=move |_| {
                 if editor_exists() {
                     set_text.set(codemirror_wgsl::get_editor_text(editor.read().as_ref().unwrap()));
                 }
-
             }>Recompile!</button>
             <div node_ref=area_node_ref></div>
         </div>
