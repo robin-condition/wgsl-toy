@@ -1,5 +1,13 @@
 use codemirror_wgsl;
-use leptos::{IntoView, component, html::Div, prelude::*, view};
+use leptos::{
+    IntoView, component,
+    ev::{EventDescriptor, keydown},
+    html::Div,
+    logging,
+    prelude::*,
+    view,
+};
+use leptos_use::{use_document, use_event_listener};
 
 #[component]
 pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> impl IntoView {
@@ -13,11 +21,23 @@ pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> im
             return;
         }
         if let Some(textarea_node) = area_node_ref.get() {
-
             set_editor.set(Some(codemirror_wgsl::make_wgsl_editor(
                 &textarea_node,
                 start_text.as_str(),
             )));
+        }
+    });
+
+    let _ = use_event_listener(use_document(), keydown, move |e| {
+        if e.ctrl_key() && e.key() == "s" {
+            logging::log!("Ctrl + S intercepted, recompiling.");
+            e.prevent_default();
+
+            if editor_exists() {
+                set_text.set(codemirror_wgsl::get_editor_text(
+                    editor.read().as_ref().unwrap(),
+                ));
+            }
         }
     });
 
