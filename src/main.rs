@@ -1,6 +1,4 @@
-use leptos::{html::Canvas, logging, prelude::*, task::spawn_local};
-use reactive_stores::Store;
-use wgpu::{SurfaceConfiguration, SurfaceTarget, util::TextureBlitterBuilder};
+use leptos::prelude::*;
 
 use crate::{codemirror_leptos::CodeMirrorEditor, compute_canvas::ComputeCanvas};
 pub mod codemirror_leptos;
@@ -8,15 +6,9 @@ pub mod compute_canvas;
 
 #[component]
 fn App() -> impl IntoView {
-    let (count, set_count) = signal(0);
-
     let starting_text = include_str!("compute.wgsl").to_owned();
 
     let (text, set_text) = signal(starting_text.clone());
-
-    Effect::new(move || {
-        leptos::logging::log!("shader: {:?}", text.get());
-    });
 
     view! {
         <ComputeCanvas size=(500u32, 500u32) shader_text=text/>

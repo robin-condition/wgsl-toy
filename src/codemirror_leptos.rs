@@ -1,7 +1,3 @@
-use std::rc::Rc;
-
-//use codemirror::{DocApi, Editor, EditorOptions};
-//use monaco::api::{CodeEditor, CodeEditorOptions, TextModel};
 use codemirror_wgsl;
 use leptos::{IntoView, component, html::Div, prelude::*, view};
 
@@ -17,15 +13,11 @@ pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> im
             return;
         }
         if let Some(textarea_node) = area_node_ref.get() {
-            //let options = EditorOptions::default().line_numbers(true);
-            //let editor = Editor::from_text_area(&textarea_node, &options);
 
-            //editor.set_value("fn hello() { \n }");
-
-            //let editor = CodeEditor::create(&textarea_node, Some(CodeEditorOptions::default()));
-            //editor.set_model(&TextModel::create("fn hello() { \n }", None, None).unwrap());
-
-            set_editor.set(Some(codemirror_wgsl::make_wgsl_editor(&textarea_node, start_text.as_str())));
+            set_editor.set(Some(codemirror_wgsl::make_wgsl_editor(
+                &textarea_node,
+                start_text.as_str(),
+            )));
         }
     });
 
