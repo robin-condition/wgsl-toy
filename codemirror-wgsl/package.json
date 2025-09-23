@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@iizukak/codemirror-lang-wgsl": "^0.3.0",
+    "codemirror": "^6.0.2",
+    "esbuild": "^0.25.10"
+  },
+  "scripts": {
+    "esbuild":"node esbuild.js"
+  }
+}
