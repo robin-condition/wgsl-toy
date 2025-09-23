@@ -1,28 +1,31 @@
 use std::borrow::Cow;
 
-use leptos::{html::Canvas, logging, prelude::*, reactive::spawn_local};
+use leptos::logging;
 use web_sys::HtmlCanvasElement;
 use wgpu::{
-    ShaderModuleDescriptor, SurfaceConfiguration, SurfaceTarget, util::TextureBlitterBuilder,
+    BindGroup, ComputePipeline, Device, PipelineLayout, Queue, ShaderModuleDescriptor, Surface,
+    SurfaceConfiguration, SurfaceTarget, TextureFormat, TextureView,
+    util::{TextureBlitter, TextureBlitterBuilder},
 };
 
-struct GPUPrepState<'a> {
-    surface: wgpu::Surface<'a>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    surface_format: wgpu::TextureFormat,
-    dimensions: (u32, u32),
-    view: wgpu::TextureView,
-    bind_group: wgpu::BindGroup,
-    pipeline_layout: wgpu::PipelineLayout,
-    blitter: wgpu::util::TextureBlitter,
+pub struct GPUPrepState<'a> {
+    surface: Surface<'a>,
+    device: Device,
+    queue: Queue,
+    surface_format: TextureFormat,
+    surface_dimensions: (u32, u32),
+    texture_dimensions: (u32, u32),
+    view: TextureView,
+    bind_group: BindGroup,
+    pipeline_layout: PipelineLayout,
+    blitter: TextureBlitter,
 }
 
-struct ShaderCallPrep {
-    pipeline: wgpu::ComputePipeline,
+pub struct ShaderCallPrep {
+    pipeline: ComputePipeline,
 }
 
-async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
+pub async fn prep_wgpu<'a>(node: HtmlCanvasElement, surface_size: (u32, u32)) -> GPUPrepState<'a> {
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         //backends: Backends::GL,
         //flags: todo!(),
@@ -31,9 +34,7 @@ async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
         ..Default::default()
     });
 
-    let width = node.width();
-
-    let height = node.height();
+    let texture_size = surface_size;
 
     let surf_targ = SurfaceTarget::Canvas(node);
     let surface = instance.create_surface(surf_targ).unwrap();
@@ -59,8 +60,8 @@ async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
         format: surface_format,
         view_formats: vec![surface_format.add_srgb_suffix()],
         alpha_mode: wgpu::CompositeAlphaMode::Auto,
-        width: width,
-        height: height,
+        width: surface_size.0,
+        height: surface_size.1,
         desired_maximum_frame_latency: 2,
         present_mode: wgpu::PresentMode::AutoVsync,
     };
@@ -69,15 +70,9 @@ async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
 
     // https://sotrh.github.io/learn-wgpu/beginner/tutorial5-textures/#loading-an-image-from-a-file
 
-    let bytes = include_bytes!("wgsl-hi.png");
-    let img = image::load_from_memory(bytes).unwrap();
-    let rgba = img.to_rgba8();
-
-    let dimensions = rgba.dimensions();
-
     let tex_size = wgpu::Extent3d {
-        width: dimensions.0,
-        height: dimensions.1,
+        width: texture_size.0,
+        height: texture_size.1,
 
         depth_or_array_layers: 1,
     };
@@ -94,22 +89,6 @@ async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
         label: Some("hi_tex"),
         view_formats: &[],
     });
-
-    queue.write_texture(
-        wgpu::TexelCopyTextureInfo {
-            texture: &texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-        },
-        &rgba,
-        wgpu::TexelCopyBufferLayout {
-            offset: 0,
-            bytes_per_row: Some(4 * dimensions.0),
-            rows_per_image: Some(dimensions.1),
-        },
-        tex_size,
-    );
 
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
@@ -157,7 +136,8 @@ async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
         device,
         queue,
         surface_format,
-        dimensions,
+        texture_dimensions: texture_size,
+        surface_dimensions: surface_size,
         view,
         bind_group,
         pipeline_layout,
@@ -165,7 +145,7 @@ async fn prep_wgpu<'a>(node: HtmlCanvasElement) -> GPUPrepState<'a> {
     }
 }
 
-fn prep_shader(prep: &GPUPrepState, shader_text: String) -> ShaderCallPrep {
+pub fn prep_shader(prep: &GPUPrepState, shader_text: String) -> ShaderCallPrep {
     let module = prep.device.create_shader_module(ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
@@ -185,7 +165,7 @@ fn prep_shader(prep: &GPUPrepState, shader_text: String) -> ShaderCallPrep {
     ShaderCallPrep { pipeline }
 }
 
-fn do_shader(gpu_prep: &GPUPrepState, shader_prep: &ShaderCallPrep) {
+pub fn do_shader(gpu_prep: &GPUPrepState, shader_prep: &ShaderCallPrep) {
     let surface_texture = gpu_prep
         .surface
         .get_current_texture()
@@ -213,11 +193,11 @@ fn do_shader(gpu_prep: &GPUPrepState, shader_prep: &ShaderCallPrep) {
     let workgroup_size = (16, 16);
 
     let workgroup_counts = (
-        gpu_prep.dimensions.0.div_ceil(workgroup_size.0),
-        gpu_prep.dimensions.1.div_ceil(workgroup_size.1),
+        gpu_prep.texture_dimensions.0.div_ceil(workgroup_size.0),
+        gpu_prep.texture_dimensions.1.div_ceil(workgroup_size.1),
     );
     logging::log!("counts: {:?}", workgroup_counts);
-    logging::log!("img size: {:?}", gpu_prep.dimensions);
+    logging::log!("img size: {:?}", gpu_prep.texture_dimensions);
     computepass.dispatch_workgroups(workgroup_counts.0, workgroup_counts.1, 1);
 
     drop(computepass);
@@ -234,53 +214,4 @@ fn do_shader(gpu_prep: &GPUPrepState, shader_prep: &ShaderCallPrep) {
     //window.pre_present_notify();
 
     surface_texture.present();
-}
-
-#[component]
-pub fn ComputeCanvas(
-    #[prop(into)] size: Signal<(u32, u32)>,
-    #[prop(into)] shader_text: Signal<String>,
-) -> impl IntoView {
-    let node_ref = NodeRef::<Canvas>::new();
-    let canvas_exists = move || node_ref.get().is_some();
-
-    let (prep_state, set_prep_state) = signal_local(None);
-    let prep_done = move || prep_state.read().is_some();
-
-    let (shader_prep, set_shader_prep) = signal_local(None);
-    let shader_prep_done = move || shader_prep.read().is_some();
-
-    Effect::new(move |_| {
-        if let Some(node) = node_ref.get() {
-            if !prep_done() {
-                logging::log!("Doing GPU prep!");
-                spawn_local(async move {
-                    set_prep_state.set(Some(prep_wgpu(node).await));
-                });
-            }
-            // https://github.com/gfx-rs/wgpu/blob/trunk/examples/standalone/02_hello_window/src/main.rs
-        }
-    });
-
-    Effect::new(move || {
-        if prep_done() {
-            logging::log!("Recompiling shaders.");
-            set_shader_prep.set(Some(prep_shader(
-                prep_state.read().as_ref().unwrap(),
-                shader_text.get(),
-            )));
-        }
-    });
-
-    Effect::new(move || {
-        if shader_prep_done() {
-            logging::log!("Re shading!");
-            do_shader(
-                prep_state.read().as_ref().unwrap(),
-                shader_prep.read().as_ref().unwrap(),
-            );
-        }
-    });
-
-    view! { <canvas width=move || size.get().0 height=move || size.get().1 node_ref=node_ref></canvas> }
 }

@@ -3,7 +3,11 @@ use leptos::{IntoView, component, ev::keydown, html::Div, logging, prelude::*, v
 use leptos_use::{use_document, use_event_listener};
 
 #[component]
-pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> impl IntoView {
+pub fn CodeMirrorEditor(
+    #[prop(into)] start_text: Signal<String>,
+    set_text: WriteSignal<String>,
+    mut on_save: impl FnMut(String) + 'static,
+) -> impl IntoView {
     let area_node_ref = NodeRef::<Div>::new();
 
     let (editor, set_editor) = signal_local(None);
@@ -16,7 +20,7 @@ pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> im
         if let Some(textarea_node) = area_node_ref.get() {
             set_editor.set(Some(codemirror_wgsl::make_wgsl_editor(
                 &textarea_node,
-                start_text.as_str(),
+                start_text.read().as_str(),
             )));
         }
     });
@@ -27,9 +31,10 @@ pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> im
             e.prevent_default();
 
             if editor_exists() {
-                set_text.set(codemirror_wgsl::get_editor_text(
-                    editor.read().as_ref().unwrap(),
-                ));
+                let text_contents =
+                    codemirror_wgsl::get_editor_text(editor.read().as_ref().unwrap());
+                set_text.set(text_contents.clone());
+                on_save(text_contents);
             }
         }
     });

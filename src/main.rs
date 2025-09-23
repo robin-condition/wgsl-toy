@@ -1,8 +1,6 @@
 use leptos::prelude::*;
 
 use crate::shader_editor::ShaderEditor;
-pub mod codemirror_leptos;
-pub mod compute_canvas;
 pub mod shader_editor;
 
 #[component]
