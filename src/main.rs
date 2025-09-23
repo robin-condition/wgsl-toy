@@ -4,6 +4,7 @@ use wgpu::{util::TextureBlitterBuilder, SurfaceConfiguration, SurfaceTarget};
 
 use crate::codemirror_leptos::CodeMirrorEditor;
 pub mod codemirror_leptos;
+pub mod compute_canvas;
 
 
 #[derive(Debug, Default, Store)]
@@ -18,6 +19,8 @@ struct GlobalState {/*
 #[component]
 fn App() -> impl IntoView {
     let (count, set_count) = signal(0);
+
+    let (text, set_text) = signal("".to_owned());
 
     let node_ref = NodeRef::<Canvas>::new();
     provide_context(Store::new(GlobalState::default()));
@@ -251,7 +254,7 @@ fn App() -> impl IntoView {
         </p>
         <canvas width=500 height=500 node_ref=node_ref>
         </canvas>
-        <CodeMirrorEditor/>
+        <CodeMirrorEditor set_text/>
     }
 }
 

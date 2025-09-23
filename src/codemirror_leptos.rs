@@ -7,10 +7,8 @@ use codemirror_wgsl;
 
 
 #[component]
-pub fn CodeMirrorEditor() -> impl IntoView {
+pub fn CodeMirrorEditor(set_text: WriteSignal<String>) -> impl IntoView {
     let area_node_ref = NodeRef::<Div>::new();
-
-    let (text, set_text) = signal("".to_owned());
 
     let (editor, set_editor) = signal_local(None);
     let editor_exists = move || editor.read().is_some();
@@ -38,7 +36,6 @@ pub fn CodeMirrorEditor() -> impl IntoView {
         <button on:click= move |_| {
                 if editor_exists() {
                     set_text.set(codemirror_wgsl::get_editor_text(editor.read().as_ref().unwrap()));
-                    leptos::logging::log!("mytext!: {:?}", text.get());
                 }
                 
             }>Recompile!</button>
