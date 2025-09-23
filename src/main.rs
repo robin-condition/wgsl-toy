@@ -1,19 +1,13 @@
 use leptos::prelude::*;
 
-use crate::{codemirror_leptos::CodeMirrorEditor, compute_canvas::ComputeCanvas};
+use crate::shader_editor::ShaderEditor;
 pub mod codemirror_leptos;
 pub mod compute_canvas;
+pub mod shader_editor;
 
 #[component]
 fn App() -> impl IntoView {
-    let starting_text = include_str!("compute.wgsl").to_owned();
-
-    let (text, set_text) = signal(starting_text.clone());
-
-    view! {
-        <ComputeCanvas size=(500u32, 500u32) shader_text=text />
-        <CodeMirrorEditor start_text=starting_text set_text />
-    }
+    view! { <ShaderEditor /> }
 }
 
 fn main() {
