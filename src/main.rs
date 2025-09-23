@@ -10,7 +10,9 @@ pub mod compute_canvas;
 fn App() -> impl IntoView {
     let (count, set_count) = signal(0);
 
-    let (text, set_text) = signal(include_str!("compute.wgsl").to_owned());
+    let starting_text = include_str!("compute.wgsl").to_owned();
+
+    let (text, set_text) = signal(starting_text.clone());
 
     Effect::new(move || {
         leptos::logging::log!("shader: {:?}", text.get());
@@ -18,7 +20,7 @@ fn App() -> impl IntoView {
 
     view! {
         <ComputeCanvas size=(500u32, 500u32) shader_text=text/>
-        <CodeMirrorEditor set_text/>
+        <CodeMirrorEditor start_text=starting_text set_text/>
     }
 }
 

@@ -6,7 +6,7 @@ use codemirror_wgsl;
 use leptos::{IntoView, component, html::Div, prelude::*, view};
 
 #[component]
-pub fn CodeMirrorEditor(set_text: WriteSignal<String>) -> impl IntoView {
+pub fn CodeMirrorEditor(start_text: String, set_text: WriteSignal<String>) -> impl IntoView {
     let area_node_ref = NodeRef::<Div>::new();
 
     let (editor, set_editor) = signal_local(None);
@@ -25,7 +25,7 @@ pub fn CodeMirrorEditor(set_text: WriteSignal<String>) -> impl IntoView {
             //let editor = CodeEditor::create(&textarea_node, Some(CodeEditorOptions::default()));
             //editor.set_model(&TextModel::create("fn hello() { \n }", None, None).unwrap());
 
-            set_editor.set(Some(codemirror_wgsl::make_wgsl_editor(&textarea_node)));
+            set_editor.set(Some(codemirror_wgsl::make_wgsl_editor(&textarea_node, start_text.as_str())));
         }
     });
 

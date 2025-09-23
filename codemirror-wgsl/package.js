@@ -2,11 +2,11 @@ import {wgsl} from '@iizukak/codemirror-lang-wgsl';
 import { EditorView, basicSetup } from 'codemirror';
 
 
-export function MakeWgslEditor(parentComponent) {
+export function MakeWgslEditor(parentComponent, s) {
     return new EditorView({
         extensions: [basicSetup, wgsl()],
         parent: parentComponent,
-        doc: "fn main() {\n hi;\n}"
+        doc: s
     })
 }
 

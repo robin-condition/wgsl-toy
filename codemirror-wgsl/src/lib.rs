@@ -7,15 +7,15 @@ extern "C" {
     pub type EditorView;
 
     #[wasm_bindgen]
-    fn MakeWgslEditor(parentComponent: &HtmlElement) -> EditorView;
+    fn MakeWgslEditor(parentComponent: &HtmlElement, s: &str) -> EditorView;
 
     #[wasm_bindgen]
     fn GetEditorText(editor: &EditorView) -> String;
 }
 
 #[wasm_bindgen]
-pub fn make_wgsl_editor(parent_component: &HtmlElement) -> EditorView {
-    return MakeWgslEditor(parent_component);
+pub fn make_wgsl_editor(parent_component: &HtmlElement, contents: &str) -> EditorView {
+    return MakeWgslEditor(parent_component, contents);
 }
 
 #[wasm_bindgen]
