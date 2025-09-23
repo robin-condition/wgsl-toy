@@ -26,7 +26,7 @@ fn prepare_pipeline_signal(
 
 #[component]
 pub fn ShaderEditor() -> impl IntoView {
-    let (starting_text, set_starting_text) = signal(include_str!("compute.wgsl").to_owned());
+    let (starting_text, _set_starting_text) = signal(include_str!("compute.wgsl").to_owned());
 
     let size = (500u32, 500u32);
 
@@ -58,10 +58,9 @@ pub fn ShaderEditor() -> impl IntoView {
         <ComputeCanvas size set_prep_state=set_gpu_prep />
         <CodeMirrorEditor
             start_text=starting_text
-            update_every=500
-            read_cur_editor_text=editor_text
+            get_editor_text=()
             set_editor_text=set_editor_text
-            on_save=move |a| {
+            on_save=move |_| {
                 logging::log!("On save callback!");
             }
         />

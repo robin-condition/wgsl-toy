@@ -1,15 +1,12 @@
-use std::time::Duration;
-
 use codemirror_wgsl;
-use leptos::{component, ev::keydown, html::Div, logging, prelude::*, view, IntoView};
+use leptos::{IntoView, component, ev::keydown, html::Div, logging, prelude::*, view};
 use leptos_use::{use_document, use_event_listener};
 
 #[component]
 pub fn CodeMirrorEditor(
     #[prop(into)] start_text: Signal<String>,
-    read_cur_editor_text: ReadSignal<String>,
+    #[prop(into)] get_editor_text: Signal<()>,
     set_editor_text: WriteSignal<String>,
-    update_every: u32,
     mut on_save: impl FnMut(String) + 'static,
 ) -> impl IntoView {
     let area_node_ref = NodeRef::<Div>::new();
@@ -17,22 +14,13 @@ pub fn CodeMirrorEditor(
     let (editor, set_editor) = signal_local(None);
     let editor_exists = move || editor.read().is_some();
 
-    let (timer_handle, set_timer_handle) = signal_local(None);
-
-    let reset_handle = |handle: Option<TimeoutHandle>| match handle {
-        None => (),
-        Some(handl) => handl.clear(),
-    };
-
-    let record_text = move || {
+    Effect::new(move || {
         if let Some(real_editor) = editor.read_untracked().as_ref() {
+            let _ = get_editor_text.get();
             let editor_text = codemirror_wgsl::get_editor_text(real_editor);
-            if read_cur_editor_text.read_untracked() == editor_text {
-                return;
-            }
             set_editor_text.set(editor_text);
         }
-    };
+    });
 
     // Respond to assignments of starting text.
     Effect::new(move || {
@@ -60,8 +48,6 @@ pub fn CodeMirrorEditor(
     });
 
     let _ = use_event_listener(use_document(), keydown, move |e| {
-        reset_handle(timer_handle.get_untracked());
-        set_timer_handle.set(None);
         if e.ctrl_key() && e.key() == "s" {
             logging::log!("Ctrl + S intercepted, recompiling.");
             e.prevent_default();
@@ -72,11 +58,6 @@ pub fn CodeMirrorEditor(
                 set_editor_text.set(text_contents.clone());
                 on_save(text_contents);
             }
-        } else {
-            set_timer_handle.set(Some(
-                set_timeout_with_handle(record_text, Duration::from_millis(update_every as u64))
-                    .unwrap(),
-            ));
         }
     });
 
