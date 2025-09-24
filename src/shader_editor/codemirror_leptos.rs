@@ -1,11 +1,11 @@
 use codemirror_wgsl;
-use leptos::{IntoView, component, ev::keydown, html::Div, logging, prelude::*, view};
+use leptos::{component, ev::keydown, html::Div, logging, prelude::*, view, IntoView};
 use leptos_use::{use_document, use_event_listener};
 
 #[component]
 pub fn CodeMirrorEditor(
     #[prop(into)] start_text: Signal<String>,
-    #[prop(into)] get_editor_text: Signal<()>,
+    #[prop(into)] get_editor_text: Trigger,
     set_editor_text: WriteSignal<String>,
     mut on_save: impl FnMut(String) + 'static,
 ) -> impl IntoView {
@@ -16,7 +16,7 @@ pub fn CodeMirrorEditor(
 
     Effect::new(move || {
         if let Some(real_editor) = editor.read_untracked().as_ref() {
-            let _ = get_editor_text.get();
+            get_editor_text.track();
             let editor_text = codemirror_wgsl::get_editor_text(real_editor);
             set_editor_text.set(editor_text);
         }
