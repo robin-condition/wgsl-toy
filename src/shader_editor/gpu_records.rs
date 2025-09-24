@@ -8,7 +8,7 @@ use wgpu::{
     util::{TextureBlitter, TextureBlitterBuilder},
 };
 
-pub struct GPUPrepState<'a> {
+pub struct GPUAdapterPrep<'a> {
     surface: Surface<'a>,
     device: Device,
     queue: Queue,
@@ -20,11 +20,14 @@ pub struct GPUPrepState<'a> {
     blitter: TextureBlitter,
 }
 
-pub struct ShaderCallPrep {
+pub struct PipelinePrep {
     pipeline: ComputePipeline,
 }
 
-pub async fn prep_wgpu<'a>(node: HtmlCanvasElement, surface_size: (u32, u32)) -> GPUPrepState<'a> {
+pub async fn prep_wgpu<'a>(
+    node: HtmlCanvasElement,
+    surface_size: (u32, u32),
+) -> GPUAdapterPrep<'a> {
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         //backends: Backends::GL,
         //flags: todo!(),
@@ -130,7 +133,7 @@ pub async fn prep_wgpu<'a>(node: HtmlCanvasElement, surface_size: (u32, u32)) ->
         .sample_type(wgpu::FilterMode::Linear)
         .build();
 
-    GPUPrepState {
+    GPUAdapterPrep {
         surface,
         device,
         queue,
@@ -143,7 +146,7 @@ pub async fn prep_wgpu<'a>(node: HtmlCanvasElement, surface_size: (u32, u32)) ->
     }
 }
 
-pub fn prep_shader(prep: &GPUPrepState, shader_text: String) -> ShaderCallPrep {
+pub fn prep_shader(prep: &GPUAdapterPrep, shader_text: String) -> PipelinePrep {
     let module = prep.device.create_shader_module(ShaderModuleDescriptor {
         label: None,
         source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
@@ -160,10 +163,10 @@ pub fn prep_shader(prep: &GPUPrepState, shader_text: String) -> ShaderCallPrep {
             cache: None,
         });
 
-    ShaderCallPrep { pipeline }
+    PipelinePrep { pipeline }
 }
 
-pub fn do_shader(gpu_prep: &GPUPrepState, shader_prep: &ShaderCallPrep) {
+pub fn do_shader(gpu_prep: &GPUAdapterPrep, shader_prep: &PipelinePrep) {
     let surface_texture = gpu_prep
         .surface
         .get_current_texture()

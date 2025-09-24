@@ -3,7 +3,7 @@ use leptos::{logging, prelude::*};
 use crate::shader_editor::{
     codemirror_leptos::CodeMirrorEditor,
     compute_canvas::ComputeCanvas,
-    gpu_records::{GPUPrepState, ShaderCallPrep},
+    gpu_records::{GPUAdapterPrep, PipelinePrep},
 };
 
 pub mod codemirror_leptos;
@@ -11,9 +11,9 @@ pub mod compute_canvas;
 pub mod gpu_records;
 
 fn prepare_pipeline_signal(
-    gpu_prep: ReadSignal<Option<GPUPrepState<'static>>, LocalStorage>,
+    gpu_prep: ReadSignal<Option<GPUAdapterPrep<'static>>, LocalStorage>,
     shader_text: Signal<String>,
-) -> ReadSignal<Option<ShaderCallPrep>, LocalStorage> {
+) -> ReadSignal<Option<PipelinePrep>, LocalStorage> {
     let (pipeline_prep, set_pipeline_prep) = signal_local(None);
     Effect::new(move || {
         if let Some(gpu) = gpu_prep.read().as_ref() {

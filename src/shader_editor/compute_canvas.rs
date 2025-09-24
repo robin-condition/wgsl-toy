@@ -1,11 +1,11 @@
 use leptos::{html::Canvas, logging, prelude::*, reactive::spawn_local};
 
-use crate::shader_editor::gpu_records::{GPUPrepState, prep_wgpu};
+use crate::shader_editor::gpu_records::{GPUAdapterPrep, prep_wgpu};
 
 #[component]
 pub fn ComputeCanvas(
     #[prop(into)] size: Signal<(u32, u32)>,
-    set_prep_state: WriteSignal<Option<GPUPrepState<'static>>, LocalStorage>,
+    set_prep_state: WriteSignal<Option<GPUAdapterPrep<'static>>, LocalStorage>,
 ) -> impl IntoView {
     let node_ref = NodeRef::<Canvas>::new();
     let canvas_exists = move || node_ref.get().is_some();
