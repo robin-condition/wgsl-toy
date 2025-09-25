@@ -6,7 +6,7 @@ pub type GPUAdapterPrepReactive = LocalResource<Result<GPUAdapterPrep<'static>, 
 pub type PipelinePrepReactive = LocalResource<Result<PipelinePrep, ()>>;
 
 pub fn prepare_pipeline_signal(
-    gpu_prep: GPUAdapterPrepReactive,// Signal<Option<Result<GPUAdapterPrep<'static>, ()>>, LocalStorage>,
+    gpu_prep: GPUAdapterPrepReactive, // Signal<Option<Result<GPUAdapterPrep<'static>, ()>>, LocalStorage>,
     shader_text: Signal<String>,
 ) -> PipelinePrepReactive {
     LocalResource::new(move || async move {
@@ -23,20 +23,22 @@ pub fn prepare_shader_effect(
     pipeline_prep: PipelinePrepReactive,
 ) {
     Effect::new(move || {
-        if let (Some(Ok(gpu)), Some(Ok(pipeline))) = (gpu_adapter_prep.read().as_ref(), pipeline_prep.read().as_ref()) {
+        if let (Some(Ok(gpu)), Some(Ok(pipeline))) = (
+            gpu_adapter_prep.read().as_ref(),
+            pipeline_prep.read().as_ref(),
+        ) {
             logging::log!("Re shading!");
-            gpu_records::do_shader(
-                gpu,
-                pipeline,
-            );
+            gpu_records::do_shader(gpu, pipeline);
         }
     });
 }
 
-pub fn prepare_adapter(canvas_ref: NodeRef<Canvas>, size: Signal<(u32, u32)>)
--> GPUAdapterPrepReactive {
-    LocalResource::new(
-        move || { async move {
+pub fn prepare_adapter(
+    canvas_ref: NodeRef<Canvas>,
+    size: Signal<(u32, u32)>,
+) -> GPUAdapterPrepReactive {
+    LocalResource::new(move || {
+        async move {
             if canvas_ref.get().is_some() {
                 let node = canvas_ref.get().unwrap();
                 logging::log!("Doing GPU prep!");
@@ -44,6 +46,6 @@ pub fn prepare_adapter(canvas_ref: NodeRef<Canvas>, size: Signal<(u32, u32)>)
                 // https://github.com/gfx-rs/wgpu/blob/trunk/examples/standalone/02_hello_window/src/main.rs
             }
             return Err(());
-        } },
-    )
+        }
+    })
 }

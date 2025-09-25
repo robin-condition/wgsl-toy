@@ -1,5 +1,5 @@
 use codemirror_wgsl;
-use leptos::{component, ev::keydown, html::Div, logging, prelude::*, view, IntoView};
+use leptos::{IntoView, component, ev::keydown, html::Div, logging, prelude::*, view};
 use leptos_use::{use_document, use_event_listener};
 
 #[component]

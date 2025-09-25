@@ -5,3 +5,4 @@
 /codemirror-wgsl/target
 localhost-key.pem
 localhost.pem
+private-config.json
