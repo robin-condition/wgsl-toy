@@ -1,15 +1,11 @@
 use leptos::{logging, prelude::*};
 use leptos_router::{
-    components::{Route, Router, Routes},
-    path,
+    components::{Route, Router, Routes}, hooks::use_query, path, params::Params
 };
 use openidconnect::{
     core::{
-        CoreAuthDisplay, CoreClaimName, CoreClaimType, CoreClient, CoreClientAuthMethod,
-        CoreGrantType, CoreJsonWebKey, CoreJweContentEncryptionAlgorithm,
-        CoreJweKeyManagementAlgorithm, CoreResponseMode, CoreResponseType,
-        CoreSubjectIdentifierType,
-    }, reqwest::{self, Client}, AuthenticationFlow, ClientId, CsrfToken, EmptyAdditionalProviderMetadata, IssuerUrl, Nonce, ProviderMetadata, RedirectUrl, Scope
+        CoreAuthDisplay, CoreClaimName, CoreClaimType, CoreClient, CoreClientAuthMethod, CoreGenderClaim, CoreGrantType, CoreJsonWebKey, CoreJweContentEncryptionAlgorithm, CoreJweKeyManagementAlgorithm, CoreResponseMode, CoreResponseType, CoreSubjectIdentifierType
+    }, reqwest::{self, Client}, AuthenticationFlow, AuthorizationCode, ClientId, CsrfToken, EmptyAdditionalClaims, EmptyAdditionalProviderMetadata, IssuerUrl, Nonce, OAuth2TokenResponse, ProviderMetadata, RedirectUrl, Scope, TokenResponse
 };
 use serde::Deserialize;
 
@@ -43,6 +39,12 @@ pub struct MyOICDCfgFile {
 pub struct OICDCtx {
     issuer_url: IssuerUrl,
     client_id: ClientId
+}
+
+#[derive(Params, PartialEq, Clone, Debug)]
+pub struct AuthReturn {
+    code: Option<String>,
+    state: Option<String>
 }
 
 #[component]
@@ -83,6 +85,28 @@ fn App() -> impl IntoView {
                 .url();
 
             logging::log!("Auth: {authorize_url}");
+
+            let authret = use_query::<AuthReturn>();
+            if authret.get().is_err() || authret.get().unwrap().code.is_none() {
+                return;
+            }
+            let authreturn = authret.get().unwrap();
+            let code = AuthorizationCode::new(authreturn.code.unwrap());
+            let state = CsrfToken::new(authreturn.state.unwrap());
+
+            let token_resp = client.exchange_code(code).unwrap().request_async(&http_client).await.unwrap();
+            logging::log!("Scopes: {:?}", token_resp.scopes());
+
+            // Should verify in here
+
+            let uinf: openidconnect::UserInfoClaims<EmptyAdditionalClaims, 
+            CoreGenderClaim> = client.user_info(token_resp.access_token().clone()
+            , None).unwrap()
+            .request_async(&http_client).await.unwrap();
+            
+            //token_resp.
+
+            logging::log!("Userinfo: {:?}", uinf);
         }
     }
     );
