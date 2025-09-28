@@ -9,7 +9,11 @@ use openidconnect::{
 };
 use serde::Deserialize;
 
-use crate::shader_editor::ShaderEditor;
+use crate::shader_editors::ShaderEditorFromId;
+
+pub const SHADER_ENDPOINT: &str = include_str!("api-endpoint.txt"); 
+
+pub mod shader_editors;
 pub mod shader_editor;
 
 type CognitoProviderMetadata = ProviderMetadata<
@@ -114,14 +118,9 @@ fn App() -> impl IntoView {
     view! {
         <Router>
             <Routes fallback=|| {
-                view! { hi }
+                view! { "Routing was unsuccessful" }
             }>
-                <Route
-                    path=path!("/")
-                    view=|| {
-                        view! { <ShaderEditor /> }
-                    }
-                />
+                <Route path=path!(":id") view=ShaderEditorFromId />
             </Routes>
         </Router>
     }

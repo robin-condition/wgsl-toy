@@ -7,9 +7,11 @@ pub mod compute_canvas;
 pub mod gpu_records;
 pub mod reactive_gpu;
 
+pub const DEFAULT_COMPUTE: &str = include_str!("compute.wgsl");
+
 #[component]
-pub fn ShaderEditor() -> impl IntoView {
-    let (starting_text, _set_starting_text) = signal(include_str!("compute.wgsl").to_owned());
+pub fn ShaderEditor(#[prop(into)] starting_text: Signal<String>) -> impl IntoView {
+    //let (starting_text, _set_starting_text) = signal(DEFAULT_COMPUTE.to_string());
 
     let (size, set_size) = signal((500u32, 500u32));
 
