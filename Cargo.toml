@@ -4,22 +4,32 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-console_error_panic_hook = "0.1.7"
-leptos = { version = "0.8.9", features = ["csr"] }
-leptos_router = "0.8.7"
-reactive_stores = "0.2.5"
-web-sys = {version = "0.3.0", features = ['CanvasRenderingContext2d', 'Document', 'Element', 'HtmlCanvasElement']}
-wgpu = {version="26.0.1", features = ["webgl"]}
-codemirror-wgsl = {path = "./codemirror-wgsl"}
 shaderwheels-logic = {path="./shaderwheels-logic"}
-leptos-use = "0.16.2"
 openidconnect = "4.0.1"
 serde_json = "1.0.145"
 serde = { version = "1.0.226", default-features = false, features = ["derive"] }
 reqwest = { version = "0.12.23", features = ["json"] }
+wgpu = {version="*", features=["webgpu", "webgl"]}
+eframe = { version = "0.32.3", default-features = false, features = ["persistence", "wgpu", "wayland", "x11", "accesskit", "default_fonts"] }
+egui = "0.32.3"
+log = "0.4.28"
+egui_code_editor = "0.2.17"
 
 
 [dependencies.image]
 version = "0.25.8"
 default-features = false
 features = ["png"]
+
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11.8"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4.50"
+web-sys = "0.3.70"              # to access the DOM (to hide the loading text)
+
+[patch.crates-io]
+wgpu = {path="../wgpu/wgpu"}
