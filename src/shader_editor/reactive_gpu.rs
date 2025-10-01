@@ -1,6 +1,6 @@
 use leptos::{html::Canvas, logging, prelude::*};
 
-use crate::shader_editor::gpu_records::{self, GPUAdapterPrep, PipelinePrep};
+use shaderwheels_logic::rendering::{self, GPUAdapterPrep, PipelinePrep};
 
 pub type GPUAdapterPrepReactive = LocalResource<Result<GPUAdapterPrep<'static>, ()>>;
 pub type PipelinePrepReactive = LocalResource<Result<PipelinePrep, ()>>;
@@ -12,7 +12,7 @@ pub fn prepare_pipeline_signal(
     LocalResource::new(move || async move {
         if let Some(Ok(gpu)) = gpu_prep.read().as_ref() {
             logging::log!("Recompiling shader!");
-            return Ok(gpu_records::prep_shader(gpu, shader_text.get()));
+            return Ok(rendering::prep_shader(gpu, shader_text.get()));
         }
         return Err(());
     })
@@ -28,7 +28,7 @@ pub fn prepare_shader_effect(
             pipeline_prep.read().as_ref(),
         ) {
             logging::log!("Re shading!");
-            gpu_records::do_shader(gpu, pipeline);
+            rendering::do_shader(gpu, pipeline);
         }
     });
 }
@@ -42,7 +42,7 @@ pub fn prepare_adapter(
             if canvas_ref.get().is_some() {
                 let node = canvas_ref.get().unwrap();
                 logging::log!("Doing GPU prep!");
-                return Ok(gpu_records::prep_wgpu(node, size.get()).await);
+                return Ok(rendering::prep_wgpu(wgpu::SurfaceTarget::Canvas(node), size.get()).await);
                 // https://github.com/gfx-rs/wgpu/blob/trunk/examples/standalone/02_hello_window/src/main.rs
             }
             return Err(());
