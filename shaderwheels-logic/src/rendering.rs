@@ -1,7 +1,6 @@
+
 use std::borrow::Cow;
 
-use leptos::logging;
-use web_sys::HtmlCanvasElement;
 use wgpu::{
     BindGroup, ComputePipeline, Device, PipelineLayout, Queue, ShaderModuleDescriptor, Surface,
     SurfaceConfiguration, SurfaceTarget, TextureFormat, TextureView,
@@ -20,14 +19,16 @@ pub struct GPUAdapterPrep<'a> {
     blitter: TextureBlitter,
 }
 
+pub const DEFAULT_COMPUTE: &str = include_str!("compute.wgsl");
+
 pub struct PipelinePrep {
     pipeline: ComputePipeline,
 }
 
-pub async fn prep_wgpu<'a>(
-    node: HtmlCanvasElement,
+pub async fn prep_wgpu<'window>(
+    surf_targ: SurfaceTarget<'window>,
     surface_size: (u32, u32),
-) -> GPUAdapterPrep<'a> {
+) -> GPUAdapterPrep<'window> {
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         //backends: Backends::GL,
         //flags: todo!(),
@@ -38,7 +39,6 @@ pub async fn prep_wgpu<'a>(
 
     let texture_size = surface_size;
 
-    let surf_targ = SurfaceTarget::Canvas(node);
     let surface = instance.create_surface(surf_targ).unwrap();
 
     let adapter = instance
@@ -197,8 +197,8 @@ pub fn do_shader(gpu_prep: &GPUAdapterPrep, shader_prep: &PipelinePrep) {
         gpu_prep.texture_dimensions.0.div_ceil(workgroup_size.0),
         gpu_prep.texture_dimensions.1.div_ceil(workgroup_size.1),
     );
-    logging::log!("counts: {:?}", workgroup_counts);
-    logging::log!("img size: {:?}", gpu_prep.texture_dimensions);
+    //logging::log!("counts: {:?}", workgroup_counts);
+    //logging::log!("img size: {:?}", gpu_prep.texture_dimensions);
     computepass.dispatch_workgroups(workgroup_counts.0, workgroup_counts.1, 1);
 
     drop(computepass);

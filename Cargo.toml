@@ -11,6 +11,7 @@ reactive_stores = "0.2.5"
 web-sys = {version = "0.3.0", features = ['CanvasRenderingContext2d', 'Document', 'Element', 'HtmlCanvasElement']}
 wgpu = {version="26.0.1", features = ["webgl"]}
 codemirror-wgsl = {path = "./codemirror-wgsl"}
+shaderwheels-logic = {path="./shaderwheels-logic"}
 leptos-use = "0.16.2"
 openidconnect = "4.0.1"
 serde_json = "1.0.145"

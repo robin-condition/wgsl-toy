@@ -2,11 +2,10 @@ use leptos::prelude::*;
 use leptos::{component, view, IntoView, Params};
 use leptos_router::hooks::use_params;
 use leptos_router::params::Params;
-use openidconnect::reqwest::Client;
 use serde::Deserialize;
 
 use crate::shader_editor::ShaderEditor;
-use crate::SHADER_ENDPOINT;
+use shaderwheels_logic::web::SHADER_API_ENDPOINT;
 
 #[derive(Params, PartialEq)]
 struct UrlParams {
@@ -22,8 +21,8 @@ struct ShaderInfo {
 #[component]
 pub fn ShaderEditorFromExplicitId(#[prop(into)] id: Signal<u32>) -> impl IntoView {
     let read_shader = LocalResource::new(move || async move {
-        let http_client = expect_context::<Client>();
-        let url = SHADER_ENDPOINT.to_string() + "/get-shader-text/" + id.get().to_string().as_str();
+        let http_client = reqwest::ClientBuilder::new().build().unwrap();//expect_context::<Client>();
+        let url = SHADER_API_ENDPOINT.to_string() + "/get-shader-text/" + id.get().to_string().as_str();
         let ret = http_client.get(url).send().await;//.map(|f| f.text().unwrap());
         let shader_contents = match ret {
             Ok(resp) => {

@@ -4,10 +4,7 @@ use crate::shader_editor::{codemirror_leptos::CodeMirrorEditor, compute_canvas::
 
 pub mod codemirror_leptos;
 pub mod compute_canvas;
-pub mod gpu_records;
 pub mod reactive_gpu;
-
-pub const DEFAULT_COMPUTE: &str = include_str!("compute.wgsl");
 
 #[component]
 pub fn ShaderEditor(#[prop(into)] starting_text: Signal<String>) -> impl IntoView {
