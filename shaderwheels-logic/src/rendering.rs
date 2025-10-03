@@ -2,18 +2,32 @@
 use std::borrow::Cow;
 
 use wgpu::{
-    BindGroup, ComputePipeline, Device, PipelineLayout, Queue, ShaderModuleDescriptor, Surface,
-    SurfaceConfiguration, SurfaceTarget, TextureFormat, TextureView,
-    util::{TextureBlitter, TextureBlitterBuilder},
+    util::{TextureBlitter, TextureBlitterBuilder}, BindGroup, ComputePipeline, Device, PipelineLayout, Queue, ShaderModuleDescriptor, Surface, SurfaceConfiguration, SurfaceTarget, Texture, TextureFormat, TextureView
 };
 
-pub struct GPUAdapterPrep<'a> {
-    surface: Surface<'a>,
-    device: Device,
-    queue: Queue,
-    surface_format: TextureFormat,
-    texture_dimensions: (u32, u32),
-    view: TextureView,
+pub struct GPUAdapterInfo {
+    pub deviceref: Device,
+    pub queueref: Queue,
+}
+
+pub struct GPUExactSurface<'a> {
+    pub surface: Surface<'a>
+}
+
+pub struct OutputFormat {
+    pub format: TextureFormat
+}
+
+pub struct OutputTextureView {
+    pub output_view: TextureView,
+}
+
+pub struct PreoutputTexture {
+    pub texture: Texture,
+    pub size: (u32, u32)
+}
+
+pub struct GPUAdapterPrep {
     bind_group: BindGroup,
     pipeline_layout: PipelineLayout,
     blitter: TextureBlitter,
@@ -40,7 +54,7 @@ pub async fn prep_wgpu<'window>(
     let texture_size = surface_size;
 
     let surface = instance.create_surface(surf_targ).unwrap();
-
+W
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             compatible_surface: Some(&surface),
