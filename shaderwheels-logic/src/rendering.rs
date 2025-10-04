@@ -1,9 +1,250 @@
-
 use std::borrow::Cow;
 
 use wgpu::{
-    util::{TextureBlitter, TextureBlitterBuilder}, BindGroup, ComputePipeline, Device, PipelineLayout, Queue, ShaderModuleDescriptor, Surface, SurfaceConfiguration, SurfaceTarget, Texture, TextureFormat, TextureView
+    BindGroup, BindGroupLayout, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline,
+    ComputePipelineDescriptor, Device, Extent3d, PipelineCompilationOptions, PipelineLayout, Queue,
+    ShaderModule, ShaderModuleDescriptor, Surface, SurfaceConfiguration, SurfaceTarget, Texture,
+    TextureDescriptor, TextureFormat, TextureView, TextureViewDescriptor,
+    util::{TextureBlitter, TextureBlitterBuilder},
 };
+
+pub struct CompleteGraphicsDependencyGraph {
+    // Inputs
+    hardware: Option<GPUAdapterInfo>,
+    unif_values: Option<()>,
+    output_format: Option<OutputFormat>,
+    preoutput_size: Option<(u32, u32)>,
+    // This should really be some kind of renderoptions
+    output_view: Option<OutputTextureView>,
+    // Pretty dang critical
+    shader_text: Option<String>,
+    entry_point: Option<String>,
+
+    // Computation results and scratchpad
+    uniform_contents_correct: bool,
+    adapter_prep: Option<GPUAdapterPrep>,
+    preoutput_tex: Option<PreoutputTexture>,
+    preoutput_tex_view: Option<TextureView>,
+    module: Option<ShaderModule>,
+    pipeline: Option<ComputePipeline>,
+    preout_texture_rendered: bool,
+    output_view_rendered: bool,
+}
+
+impl CompleteGraphicsDependencyGraph {
+    // Really ought to be refactored to more gracefully handle fails
+    pub async fn complete(&mut self) {
+        // Create the compute result ("preout") texture
+        if let None = self.preoutput_tex {
+            // Invalidate preout view
+            self.preoutput_tex_view = None;
+            // Invalidate preout render
+            self.preout_texture_rendered = false;
+
+            self.try_make_preout_tex();
+        }
+
+        // Create the module from the shader text
+        if let None = self.module {
+            // Invalidate pipeline
+            self.pipeline = None;
+
+            self.try_make_module();
+        }
+
+        // Create the compute pipeline
+        if let None = self.pipeline {
+            // Invalidate compute result
+            self.preout_texture_rendered = false;
+
+            self.try_make_pipeline();
+        }
+
+        // TODO: Create bind groups from specification
+
+        // TODO: Set uniform values from inputs
+
+        // Create preoutput texture view
+        if let None = self.preoutput_tex_view {
+            // Invalidate compute result
+            self.preout_texture_rendered = false;
+            // Invalidate copied draw? Gonna skip for now
+            //self.output_view_rendered = false;
+
+            self.try_make_preout_view();
+        }
+
+        // Any GPU work to do at all, make encoder for it.
+        if !self.output_view_rendered
+        // Actually.. let's only do GPU work if something is actually to be rendered. So I'll comment this out
+        //|| !self.preout_texture_rendered
+        {
+            // Nothing to invalidate -- we're the whole ball game.
+            // Even the compute output does not invalidate the drawn version, because that has to be externally requested.
+
+            self.try_render_output();
+        }
+    }
+
+    fn try_render_output(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+
+        let bind_group_info = self.adapter_prep.as_ref()?;
+
+        // These are `?`'d now even though they aren't needed until later because if we don't have them, we can't copy to render,
+        // so we should just skip for now.
+        let output_view = self.output_view.as_ref()?;
+        let preout_tex_view = self.preoutput_tex_view.as_ref()?;
+
+        let encoder_descriptor = CommandEncoderDescriptor {
+            label: Some("Command Encoder Descriptor"),
+        };
+        let mut encoder = hardware
+            .deviceref
+            .create_command_encoder(&encoder_descriptor);
+
+        // Rerun compute shader, render compute result ("preout") texture
+        // Or, try to. IF it has been invalidated.
+        if !self.preout_texture_rendered {
+            // Nothing to invalidate
+
+            // This is NOT `?`'d because I want to continue to copy to render screen even if this is a fail.
+            let pipeline_maybe = self.pipeline.as_ref();
+            let preout_size_maybe = self.preoutput_size;
+
+            match (pipeline_maybe, preout_size_maybe) {
+                (Some(pipeline), Some(preout_size)) => {
+                    CompleteGraphicsDependencyGraph::try_recompute(
+                        pipeline,
+                        preout_size,
+                        bind_group_info,
+                        &mut encoder,
+                    );
+
+                    // Mark this render as done only if that's true
+                    self.preout_texture_rendered = true;
+                }
+                _ => (),
+            }
+        }
+
+        // Blit/copy the compute result to the output view
+        if !self.output_view_rendered {
+            bind_group_info.blitter.copy(
+                &hardware.deviceref,
+                &mut encoder,
+                preout_tex_view,
+                &output_view.output_view,
+            );
+
+            self.output_view_rendered = true;
+        }
+
+        hardware.queueref.submit([encoder.finish()]);
+
+        Some(())
+    }
+
+    fn try_recompute(
+        pipeline: &ComputePipeline,
+        preout_size: (u32, u32),
+        bind_group_info: &GPUAdapterPrep,
+        encoder: &mut wgpu::CommandEncoder,
+    ) {
+        let compute_pass_descriptor = ComputePassDescriptor {
+            label: Some("Compute Pass!"),
+            timestamp_writes: None,
+        };
+
+        let mut compute_pass = encoder.begin_compute_pass(&compute_pass_descriptor);
+        compute_pass.set_pipeline(pipeline);
+
+        // TODO: Bind more groups
+        compute_pass.set_bind_group(0, &bind_group_info.bind_group, &[]);
+
+        let workgroup_counts = (preout_size.0.div_ceil(16u32), preout_size.1.div_ceil(16u32));
+
+        compute_pass.dispatch_workgroups(workgroup_counts.0, workgroup_counts.1, 1);
+    }
+
+    fn try_make_preout_view(&mut self) -> Option<()> {
+        let tex = self.preoutput_tex.as_ref()?;
+
+        let view_descript = TextureViewDescriptor::default();
+        let tex_view = tex.texture.create_view(&view_descript);
+
+        self.preoutput_tex_view = Some(tex_view);
+        Some(())
+    }
+
+    fn try_make_pipeline(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+        let layouts = self.adapter_prep.as_ref()?;
+
+        let module = self.module.as_ref()?;
+        let entry_point = self.entry_point.as_ref()?;
+
+        let comp_opts = wgpu::PipelineCompilationOptions::default();
+
+        let descriptor = ComputePipelineDescriptor {
+            label: Some("Compute Pipeline"),
+            layout: Some(&layouts.pipeline_layout),
+            module: module,
+            entry_point: Some(entry_point.as_ref()),
+            compilation_options: comp_opts,
+            cache: None,
+        };
+
+        let pipeline = hardware.deviceref.create_compute_pipeline(&descriptor);
+        self.pipeline = Some(pipeline);
+        Some(())
+    }
+
+    fn try_make_module(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+        let shader_text = self.shader_text?;
+        let module = hardware
+            .deviceref
+            .create_shader_module(ShaderModuleDescriptor {
+                label: Some("Compute Module"),
+                source: Cow::Owned(shader_text),
+            });
+        self.module = Some(module);
+        Some(())
+    }
+
+    fn try_make_preout_tex(&mut self) -> Option<()> {
+        let preout_size = self.preoutput_size?;
+
+        let hardware = self.hardware.as_ref()?;
+
+        let descriptor = TextureDescriptor {
+            label: Some("Compute Result"),
+            size: Extent3d {
+                width: preout_size.0,
+                height: preout_size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+
+            dimension: wgpu::TextureDimension::D2,
+            format: TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        };
+
+        let preout_tex = PreoutputTexture {
+            texture: hardware.deviceref.create_texture(&descriptor),
+            size: preout_size,
+        };
+        self.preoutput_tex = Some(preout_tex);
+
+        Some(())
+    }
+}
 
 pub struct GPUAdapterInfo {
     pub deviceref: Device,
@@ -11,11 +252,11 @@ pub struct GPUAdapterInfo {
 }
 
 pub struct GPUExactSurface<'a> {
-    pub surface: Surface<'a>
+    pub surface: Surface<'a>,
 }
 
 pub struct OutputFormat {
-    pub format: TextureFormat
+    pub format: TextureFormat,
 }
 
 pub struct OutputTextureView {
@@ -24,7 +265,7 @@ pub struct OutputTextureView {
 
 pub struct PreoutputTexture {
     pub texture: Texture,
-    pub size: (u32, u32)
+    pub size: (u32, u32),
 }
 
 pub struct GPUAdapterPrep {
@@ -38,6 +279,8 @@ pub const DEFAULT_COMPUTE: &str = include_str!("compute.wgsl");
 pub struct PipelinePrep {
     pipeline: ComputePipeline,
 }
+
+pub async fn create_device_info_no_surface() {}
 
 pub async fn prep_wgpu<'window>(
     surf_targ: SurfaceTarget<'window>,
@@ -54,7 +297,7 @@ pub async fn prep_wgpu<'window>(
     let texture_size = surface_size;
 
     let surface = instance.create_surface(surf_targ).unwrap();
-W
+
     let adapter = instance
         .request_adapter(&wgpu::RequestAdapterOptions {
             compatible_surface: Some(&surface),
@@ -147,10 +390,13 @@ W
         .sample_type(wgpu::FilterMode::Linear)
         .build();
 
+    let adapter_stuff = GPUAdapterInfo {
+        deviceref: device,
+        queueref: queue,
+    };
+
     GPUAdapterPrep {
         surface,
-        device,
-        queue,
         surface_format,
         texture_dimensions: texture_size,
         view,

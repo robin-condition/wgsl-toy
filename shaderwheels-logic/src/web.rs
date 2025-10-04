@@ -1,8 +1,14 @@
-
 use openidconnect::{
+    AuthenticationFlow, AuthorizationCode, ClientId, CsrfToken, EmptyAdditionalClaims,
+    EmptyAdditionalProviderMetadata, IssuerUrl, Nonce, OAuth2TokenResponse, ProviderMetadata,
+    RedirectUrl, Scope,
     core::{
-        CoreAuthDisplay, CoreClaimName, CoreClaimType, CoreClient, CoreClientAuthMethod, CoreGenderClaim, CoreGrantType, CoreJsonWebKey, CoreJweContentEncryptionAlgorithm, CoreJweKeyManagementAlgorithm, CoreResponseMode, CoreResponseType, CoreSubjectIdentifierType
-    }, reqwest, AuthenticationFlow, AuthorizationCode, ClientId, CsrfToken, EmptyAdditionalClaims, EmptyAdditionalProviderMetadata, IssuerUrl, Nonce, OAuth2TokenResponse, ProviderMetadata, RedirectUrl, Scope
+        CoreAuthDisplay, CoreClaimName, CoreClaimType, CoreClient, CoreClientAuthMethod,
+        CoreGenderClaim, CoreGrantType, CoreJsonWebKey, CoreJweContentEncryptionAlgorithm,
+        CoreJweKeyManagementAlgorithm, CoreResponseMode, CoreResponseType,
+        CoreSubjectIdentifierType,
+    },
+    reqwest,
 };
 use serde::Deserialize;
 
@@ -39,7 +45,7 @@ pub struct OICDCtx {
 
 pub struct AuthReturn {
     code: Option<String>,
-    state: Option<String>
+    state: Option<String>,
 }
 
 pub async fn doauth() {
@@ -73,7 +79,7 @@ pub async fn doauth() {
     let authret: Result<AuthReturn, std::io::Error> = Ok(AuthReturn {
         code: None,
         state: None,
-    });//use_query::<AuthReturn>();
+    }); //use_query::<AuthReturn>();
     if authret.is_err() || authret.as_ref().unwrap().code.is_none() {
         return;
     }
