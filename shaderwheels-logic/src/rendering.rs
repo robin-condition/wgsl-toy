@@ -32,7 +32,68 @@ pub struct CompleteGraphicsDependencyGraph {
 }
 
 impl CompleteGraphicsDependencyGraph {
-    // Really ought to be refactored to more gracefully handle fails
+
+    pub fn new() -> Self {
+        todo!()
+    }
+
+    // Any of the setters:
+    // 1. Update their corresponding input field.
+    // 2. Invalidate direct usages.
+    // Indirect usages are invalidated by the updater.
+    // The updater proceeds in topological order,
+    // so usages will be invalidated before they are run.
+
+    pub fn set_shader_text(&mut self, text: String) {
+        self.shader_text = Some(text);
+        
+        // Invalidate module.
+        self.module = None;
+    }
+
+    pub fn set_entry_point(&mut self, text: String) {
+        self.entry_point = Some(text);
+        
+        // Invalidate pipeline.
+        self.pipeline = None;
+    }
+
+    pub fn set_uniform_contents(&mut self, contents: ()) {
+        
+        // Invalidate uniform values on gpu
+        self.uniform_contents_correct = false;
+
+        // TODO: Update some kind of uniform value configuration
+        todo!();
+    }
+
+    pub fn set_output_view(&mut self, output_view: TextureView) {
+        self.output_view = Some(OutputTextureView { output_view });
+
+        // Invalidate the render / mark for rerender.
+        self.output_view_rendered = false;
+    }
+
+    pub fn set_output_format(&mut self, output_format: TextureFormat) {
+        self.output_format = Some(OutputFormat { format: output_format });
+
+        // TODO: invalidate the blitter.
+        todo!()
+    }
+
+    pub fn set_preoutput_size(&mut self, preout_size: (u32, u32)) {
+        self.preoutput_size = Some(preout_size);
+
+        // Invalidate preout texture.
+        self.preoutput_tex = None;
+    }
+
+    pub fn mark_for_rerender(&mut self) {
+        // All this does is invalidate.
+        self.output_view_rendered = false;
+    }
+
+    // Recomputes all necessary or invalidated steps.
     pub async fn complete(&mut self) {
         // Create the compute result ("preout") texture
         if let None = self.preoutput_tex {
