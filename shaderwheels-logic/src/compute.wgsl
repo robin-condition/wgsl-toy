@@ -14,7 +14,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let uv = vec2<f32>(f32(global_id.x), f32(global_id.y)) / vec2<f32>(f32(dimensions.x), f32(dimensions.y));
 
-    let color: vec3<f32> = vec3<f32>(uv.x, uv.y, 0.0);
+    let color: vec3<f32> = vec3<f32>(uv.x, uv.y, 1.0 - uv.x);
     
     textureStore(textureOutput, vec2<i32>(i32(global_id.x), i32(global_id.y)), vec4<f32>(color, 1.0));
 }
