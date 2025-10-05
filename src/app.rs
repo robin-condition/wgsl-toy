@@ -1,17 +1,17 @@
-use egui::{Color32, KeyboardShortcut, Layout, Modifiers, RichText, Widget};
-use egui_code_editor::ColorTheme;
+use egui::{KeyboardShortcut, Modifiers, Widget};
 use egui_tiles::Tree;
 
 mod tiles_tree_stuff;
 
 use crate::app::{
     egui_shaderwheels_logic::RenderCtx,
-    eguice_syntax::wgsl_syntax,
     tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
 };
 
+mod editor_gui;
 mod egui_shaderwheels_logic;
 mod eguice_syntax;
+mod error_viewer;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -130,67 +130,13 @@ impl eframe::App for App {
             });
         });
 
-        egui::SidePanel::right("editor_panel").show(ctx, |ui| {
-            //let target_size = ui.available_size();
-
-            let changed = //ui .add_sized(ui.available_size(),*/
-            ui.add(
-                    egui_code_editor_to_widget(
-                        egui_code_editor::CodeEditor::default()
-                            .id_source("editor!")
-                            .with_theme(ColorTheme::GRUVBOX)
-                            .with_syntax(wgsl_syntax())
-                            .with_numlines(true)
-                            .with_rows(50)
-                            .with_fontsize(14f32),
-                            &mut self.current_shader_text
-                    )
-                )
-                .changed();
-
-            let rou_changed = ui
-                .checkbox(&mut self.compile_on_change, "Recompile on text change")
-                .changed();
-
-            let roi_changed = ui
-                .checkbox(&mut self.recompute_on_invalidate, "Recompute on recompile")
-                .changed();
-
-            ui.with_layout(Layout::bottom_up(egui::Align::Min), |bottom_ui| {
-                let rt = if let Some(err) = self.inf.dep_graph.get_compilation_error() {
-                    let err_text = match err {
-                        wgpu::Error::OutOfMemory { source: _ } => "",
-                        wgpu::Error::Validation {
-                            source: _,
-                            description,
-                        } => &description,
-                        wgpu::Error::Internal {
-                            source: _,
-                            description,
-                        } => &description,
-                    };
-                    RichText::new(err_text).color(Color32::RED)
-                } else {
-                    RichText::new("Latest compilation successful.")
-                };
-
-                bottom_ui.label(rt.size(14f32));
-            });
-
-            if roi_changed {
-                self.inf.dep_graph.recompute_on_invalidation = self.recompute_on_invalidate;
-            }
-
-            if (changed || rou_changed) && self.compile_on_change {
-                self.inf
-                    .dep_graph
-                    .set_shader_text(self.current_shader_text.clone());
-            }
-        });
-
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut behav = TreeBehavior {
                 rctx: &mut self.inf,
+                current_shader_text: &mut self.current_shader_text,
+                compile_on_change: &mut self.compile_on_change,
+                recompute_on_invalidate: &mut self.recompute_on_invalidate,
+                renderstate: _frame.wgpu_render_state().as_ref().unwrap(),
             };
             self.tree.ui(&mut behav, ui);
             //Tree::new("tree", root, tiles)

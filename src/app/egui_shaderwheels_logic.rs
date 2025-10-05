@@ -5,6 +5,8 @@ use shaderwheels_logic::rendering::{
 };
 use wgpu::{Extent3d, TextureDescriptor, TextureFormat};
 
+use crate::app::egui_shaderwheels_logic;
+
 #[derive(Default)]
 pub struct RenderCtx {
     pub dep_graph: CompleteGraphicsDependencyGraph,
@@ -77,8 +79,19 @@ pub(crate) fn replace_base_texture(
     ctx.tex_id = Some(tex_id);
 }
 
-pub(crate) fn draw(rctx: &mut RenderCtx, ui: &mut Ui) {
-    let rect = ui.max_rect();
+pub(crate) fn draw(rctx: &mut RenderCtx, renderstate: &RenderState, ui: &mut Ui) {
+    let rect = ui.available_rect_before_wrap();
+    let cur_size = (rect.width() as u32, rect.height() as u32);
+
+    let retexture = rctx
+        .dep_graph
+        .get_preout_size()
+        .map_or(true, |f| f != cur_size);
+
+    if retexture {
+        egui_shaderwheels_logic::replace_base_texture(&renderstate, rctx, cur_size);
+    }
+
     if let Some(tex_id) = rctx.tex_id.as_ref() {
         let uv = Rect {
             min: pos2(0.0f32, 0.0f32),

@@ -1,7 +1,11 @@
-use egui::Sense;
+use eframe::egui_wgpu::RenderState;
 use egui_tiles::{Behavior, UiResponse};
 
-use crate::app::egui_shaderwheels_logic::RenderCtx;
+use crate::app::{
+    editor_gui::add_editor,
+    egui_shaderwheels_logic::{self, RenderCtx},
+    error_viewer::add_error_viewer,
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum PaneType {
@@ -61,6 +65,10 @@ pub fn create_basic_tree() -> egui_tiles::Tree<ShaderWheelsPane> {
 // Nvm gave up and referred to example again
 pub struct TreeBehavior<'a> {
     pub rctx: &'a mut RenderCtx,
+    pub current_shader_text: &'a mut String,
+    pub compile_on_change: &'a mut bool,
+    pub recompute_on_invalidate: &'a mut bool,
+    pub renderstate: &'a RenderState,
 }
 
 impl<'a> Behavior<ShaderWheelsPane> for TreeBehavior<'a> {
@@ -70,20 +78,33 @@ impl<'a> Behavior<ShaderWheelsPane> for TreeBehavior<'a> {
         _tile_id: egui_tiles::TileId,
         pane: &mut ShaderWheelsPane,
     ) -> egui_tiles::UiResponse {
-        match pane.kind {
+        let drag_rect = match pane.kind {
             PaneType::CodeEditor => {
-                ui.label("I'm an editor");
+                let lab = ui.label("I'm an editor");
+                add_editor(
+                    self.rctx,
+                    self.current_shader_text,
+                    self.compile_on_change,
+                    self.recompute_on_invalidate,
+                    ui,
+                );
+                lab
             }
             PaneType::ErrorViewer => {
-                ui.label("I'm an error viewer");
+                let lab = ui.label("I'm an error viewer");
+                add_error_viewer(&self.rctx, ui);
+                lab
             }
             PaneType::RenderTarget => {
-                ui.label("I'm a render target");
+                let lab = ui.label("I'm a render target");
+                egui_shaderwheels_logic::draw(self.rctx, self.renderstate, ui);
+                lab
             }
         }
+        .rect;
 
         let dragged = ui
-            .allocate_rect(ui.max_rect(), egui::Sense::DRAG)
+            .allocate_rect(drag_rect, egui::Sense::DRAG)
             .on_hover_cursor(egui::CursorIcon::Grab)
             .dragged();
         if dragged {
