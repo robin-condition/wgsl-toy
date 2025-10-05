@@ -132,7 +132,7 @@ impl eframe::App for App {
             };
 
             rctx.dep_graph
-                .set_shader_text(shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string());
+                .set_shader_text(self.current_shader_text.clone());
             rctx.dep_graph.set_entry_point("main".to_string());
 
             self.inf = Some(rctx);

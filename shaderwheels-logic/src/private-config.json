@@ -1,0 +1,7 @@
+{
+    "client_id": "iSSCNoG10m2Cn0Eth3Xofclj6ZN8g7DX",
+    "issuer": "https://dev-iijie3561of4qv68.us.auth0.com/",
+    "redirect_uri": "https://localhost:8080/",
+    "post_logout_redirect_uri": "https://localhost:8080/",
+    "scope": "openid email phone"
+}
