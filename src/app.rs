@@ -1,11 +1,12 @@
+use eframe::egui_wgpu::RenderState;
 use egui::{
     pos2, Color32, KeyboardShortcut, Layout, Modifiers, Rect, RichText, Stroke, TextureId, Widget,
 };
-use egui_code_editor::{ColorTheme, Syntax};
+use egui_code_editor::ColorTheme;
 use shaderwheels_logic::rendering::{
     CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
 };
-use wgpu::{Extent3d, TextureFormat};
+use wgpu::{wgt::TextureDescriptor, Extent3d, TextureFormat};
 
 use crate::app::eguice_syntax::wgsl_syntax;
 
@@ -14,31 +15,31 @@ mod eguice_syntax;
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct App {
-    // Example stuff:
-    label: String,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
-
     #[serde(skip)]
-    inf: Option<RenderCtx>,
+    inf: RenderCtx,
 
     current_shader_text: String,
+
+    #[serde(skip)]
+    compile_on_change: bool,
+
+    #[serde(skip)]
+    recompute_on_invalidate: bool,
 }
 
+#[derive(Default)]
 pub struct RenderCtx {
     dep_graph: CompleteGraphicsDependencyGraph,
-    tex_id: TextureId,
+    tex_id: Option<TextureId>,
 }
 
 impl Default for App {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
-            inf: None,
+            inf: RenderCtx::default(),
             current_shader_text: shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string(),
+            compile_on_change: false,
+            recompute_on_invalidate: false,
         }
     }
 }
@@ -51,11 +52,86 @@ impl App {
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
+
+        let state: App = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             Default::default()
+        };
+
+        let mut rctx = App::onetime_hardware_setup(cc);
+
+        rctx.dep_graph
+            .set_shader_text(state.current_shader_text.clone());
+        rctx.dep_graph.set_entry_point("main".to_string());
+
+        Self { ..state }
+    }
+
+    fn onetime_hardware_setup(cc: &eframe::CreationContext<'_>) -> RenderCtx {
+        let renderstate = cc.wgpu_render_state.as_ref().unwrap();
+        let draw_size = (512u32, 512u32);
+
+        let rendergraph = CompleteGraphicsDependencyGraph::new(CompleteGraphicsInitialConfig {
+            output_view: Some(view.clone()),
+            output_format: Some(TextureFormat::Rgba8Unorm),
+            hardware: Some(GPUAdapterInfo {
+                deviceref: renderstate.device.clone(),
+                queueref: renderstate.queue.clone(),
+            }),
+            shader_text: None,
+            entry_point: None,
+            preoutput_size: Some((512, 512)),
+            recompute_on_invalidate: true,
+        });
+
+        let mut rctx = RenderCtx {
+            dep_graph: rendergraph,
+            tex_id: None,
+        };
+
+        App::replace_base_texture(renderstate, &mut rctx, draw_size);
+        rctx
+    }
+
+    fn replace_base_texture(
+        egui_renderstate: &RenderState,
+        ctx: &mut RenderCtx,
+        new_size: (u32, u32),
+    ) {
+        if let Some(id) = ctx.tex_id {
+            egui_renderstate.renderer.write().free_texture(&id);
+            ctx.tex_id = None;
         }
+
+        let texture = egui_renderstate.device.create_texture(&TextureDescriptor {
+            label: Some("OUTPUT TEXTURE"),
+            size: Extent3d {
+                width: new_size.0,
+                height: new_size.1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        });
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let tex_id = egui_renderstate.renderer.write().register_native_texture(
+            &egui_renderstate.device,
+            &view,
+            eframe::wgpu::FilterMode::Linear,
+        );
+
+        ctx.dep_graph.set_preoutput_size(new_size);
+        ctx.dep_graph.set_output_view(view);
+
+        ctx.tex_id = Some(tex_id);
     }
 }
 
@@ -88,66 +164,16 @@ impl eframe::App for App {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        if let None = self.inf {
-            let renderstate = _frame.wgpu_render_state().unwrap();
-            let draw_size = (512u32, 512u32);
-            let texture = renderstate.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("drawtexture"),
-                size: Extent3d {
-                    width: draw_size.0,
-                    height: draw_size.1,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8Unorm,
-                usage: wgpu::TextureUsages::COPY_DST
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-            });
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            let tex_id = renderstate.renderer.write().register_native_texture(
-                &renderstate.device,
-                &view,
-                eframe::wgpu::FilterMode::Linear,
-            );
-
-            let rendergraph = CompleteGraphicsDependencyGraph::new(CompleteGraphicsInitialConfig {
-                output_view: Some(view.clone()),
-                output_format: Some(TextureFormat::Rgba8Unorm),
-                hardware: Some(GPUAdapterInfo {
-                    deviceref: renderstate.device.clone(),
-                    queueref: renderstate.queue.clone(),
-                }),
-                shader_text: None,
-                entry_point: None,
-                preoutput_size: Some((512, 512)),
-            });
-
-            let mut rctx = RenderCtx {
-                dep_graph: rendergraph,
-                tex_id,
-            };
-
-            rctx.dep_graph
-                .set_shader_text(self.current_shader_text.clone());
-            rctx.dep_graph.set_entry_point("main".to_string());
-
-            self.inf = Some(rctx);
-        }
-
-        let mut popup = false;
+        let mut saved = false;
 
         ctx.input_mut(|i| {
             if i.consume_shortcut(&KeyboardShortcut::new(Modifiers::CTRL, egui::Key::S)) {
-                popup = true;
+                saved = true;
             }
         });
 
-        if popup {
-            self.label = "BOB".to_string();
+        if saved {
+            // Saving should happen here!
         }
 
         _frame.wgpu_render_state().unwrap();
@@ -189,6 +215,14 @@ impl eframe::App for App {
                 )
                 .changed();
 
+            let rou_changed = ui
+                .checkbox(&mut self.compile_on_change, "Recompile on text change")
+                .changed();
+
+            let roi_changed = ui
+                .checkbox(&mut self.recompute_on_invalidate, "Recompute on recompile")
+                .changed();
+
             ui.with_layout(Layout::bottom_up(egui::Align::Min), |bottom_ui| {
                 if let Some(rctx) = self.inf.as_mut() {
                     let rt = if let Some(err) = rctx.dep_graph.get_compilation_error() {
@@ -205,14 +239,20 @@ impl eframe::App for App {
                         };
                         RichText::new(err_text).color(Color32::RED)
                     } else {
-                        RichText::new("Compilation successful.")
+                        RichText::new("Latest compilation successful.")
                     };
 
                     bottom_ui.label(rt.size(14f32));
                 }
             });
 
-            if changed {
+            if roi_changed {
+                if let Some(rctx) = self.inf.as_mut() {
+                    rctx.dep_graph.recompute_on_invalidation = self.recompute_on_invalidate;
+                }
+            }
+
+            if (changed || rou_changed) && self.compile_on_change {
                 if let Some(rctx) = self.inf.as_mut() {
                     rctx.dep_graph
                         .set_shader_text(self.current_shader_text.clone());

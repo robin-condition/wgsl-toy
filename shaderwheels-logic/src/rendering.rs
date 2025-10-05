@@ -12,8 +12,10 @@ pub struct CompleteGraphicsInitialConfig {
     pub entry_point: Option<String>,
     pub preoutput_size: Option<(u32, u32)>,
     pub output_view: Option<TextureView>,
+    pub recompute_on_invalidate: bool
 }
 
+#[derive(Default)]
 pub struct CompleteGraphicsDependencyGraph {
     // Inputs
     hardware: Option<GPUAdapterInfo>,
@@ -25,6 +27,7 @@ pub struct CompleteGraphicsDependencyGraph {
     // Pretty dang critical
     shader_text: Option<String>,
     entry_point: Option<String>,
+    pub recompute_on_invalidation: bool,
 
     // Computation results and scratchpad
     uniform_contents_correct: bool,
@@ -52,6 +55,7 @@ impl CompleteGraphicsDependencyGraph {
                 .map(|f| OutputTextureView { output_view: f }),
             shader_text: cfg.shader_text,
             entry_point: cfg.entry_point,
+            recompute_on_invalidation: cfg.recompute_on_invalidate,
 
             uniform_contents_correct: false,
             blitter: None,
@@ -74,6 +78,14 @@ impl CompleteGraphicsDependencyGraph {
 
     pub fn get_compilation_error(&self) -> Option<&wgpu::Error> {
         self.module_comp_result.as_ref()?.as_ref().err()
+    }
+
+    pub fn get_hardware(&self) -> Option<&GPUAdapterInfo> {
+        self.hardware.as_ref()
+    }
+
+    pub fn get_preout_size(&self) -> Option<(u32, u32)> {
+        self.preoutput_size
     }
 
     // Any of the setters:
@@ -245,7 +257,7 @@ impl CompleteGraphicsDependencyGraph {
 
         // Rerun compute shader, render compute result ("preout") texture
         // Or, try to. IF it has been invalidated.
-        if !self.preout_texture_rendered {
+        if !self.preout_texture_rendered && self.recompute_on_invalidation {
             // Nothing to invalidate
 
             // This is NOT `?`'d because I want to continue to copy to render screen even if this is a fail.
