@@ -3,7 +3,7 @@ use egui::{pos2, Color32, Rect, TextureId, Ui};
 use shaderwheels_logic::rendering::{
     CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
 };
-use wgpu::{naga::proc, Extent3d, TextureDescriptor, TextureFormat};
+use wgpu::{Extent3d, TextureDescriptor, TextureFormat};
 
 use crate::app::egui_shaderwheels_logic;
 

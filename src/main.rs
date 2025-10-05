@@ -67,7 +67,7 @@ fn main() {
                 }
                 Err(e) => {
                     loading_text.set_inner_html(
-                        "<p> The app has crashed. See the developer console for details. </p>",
+                        "<p> This application requires WebGPU. Please enable it in your browser or change to one that supports it. </p>",
                     );
                     panic!("Failed to start eframe: {e:?}");
                 }
