@@ -1,2 +1,6 @@
 [build]
 filehash = false
+
+#[serve]
+#tls_key_path = "./localhost-key.pem"
+#tls_cert_path = "./localhost.pem"
