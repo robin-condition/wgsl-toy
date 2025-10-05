@@ -1,7 +1,5 @@
 use eframe::egui_wgpu::RenderState;
-use egui::{
-    pos2, Color32, KeyboardShortcut, Layout, Modifiers, Rect, RichText, Stroke, TextureId, Widget,
-};
+use egui::{pos2, Color32, KeyboardShortcut, Layout, Modifiers, Rect, RichText, TextureId, Widget};
 use egui_code_editor::ColorTheme;
 use shaderwheels_logic::rendering::{
     CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
@@ -65,7 +63,7 @@ impl App {
             .set_shader_text(state.current_shader_text.clone());
         rctx.dep_graph.set_entry_point("main".to_string());
 
-        Self { ..state }
+        Self { inf: rctx, ..state }
     }
 
     fn onetime_hardware_setup(cc: &eframe::CreationContext<'_>) -> RenderCtx {
@@ -73,7 +71,7 @@ impl App {
         let draw_size = (512u32, 512u32);
 
         let rendergraph = CompleteGraphicsDependencyGraph::new(CompleteGraphicsInitialConfig {
-            output_view: Some(view.clone()),
+            output_view: None,
             output_format: Some(TextureFormat::Rgba8Unorm),
             hardware: Some(GPUAdapterInfo {
                 deviceref: renderstate.device.clone(),
@@ -224,45 +222,41 @@ impl eframe::App for App {
                 .changed();
 
             ui.with_layout(Layout::bottom_up(egui::Align::Min), |bottom_ui| {
-                if let Some(rctx) = self.inf.as_mut() {
-                    let rt = if let Some(err) = rctx.dep_graph.get_compilation_error() {
-                        let err_text = match err {
-                            wgpu::Error::OutOfMemory { source: _ } => "",
-                            wgpu::Error::Validation {
-                                source: _,
-                                description,
-                            } => &description,
-                            wgpu::Error::Internal {
-                                source: _,
-                                description,
-                            } => &description,
-                        };
-                        RichText::new(err_text).color(Color32::RED)
-                    } else {
-                        RichText::new("Latest compilation successful.")
+                let rt = if let Some(err) = self.inf.dep_graph.get_compilation_error() {
+                    let err_text = match err {
+                        wgpu::Error::OutOfMemory { source: _ } => "",
+                        wgpu::Error::Validation {
+                            source: _,
+                            description,
+                        } => &description,
+                        wgpu::Error::Internal {
+                            source: _,
+                            description,
+                        } => &description,
                     };
+                    RichText::new(err_text).color(Color32::RED)
+                } else {
+                    RichText::new("Latest compilation successful.")
+                };
 
-                    bottom_ui.label(rt.size(14f32));
-                }
+                bottom_ui.label(rt.size(14f32));
             });
 
             if roi_changed {
-                if let Some(rctx) = self.inf.as_mut() {
-                    rctx.dep_graph.recompute_on_invalidation = self.recompute_on_invalidate;
-                }
+                self.inf.dep_graph.recompute_on_invalidation = self.recompute_on_invalidate;
             }
 
             if (changed || rou_changed) && self.compile_on_change {
-                if let Some(rctx) = self.inf.as_mut() {
-                    rctx.dep_graph
-                        .set_shader_text(self.current_shader_text.clone());
-                }
+                self.inf
+                    .dep_graph
+                    .set_shader_text(self.current_shader_text.clone());
             }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let rect = ui.max_rect();
-            if let Some(rctx) = self.inf.as_mut() {
+            let rctx = &mut self.inf;
+            if let Some(tex_id) = rctx.tex_id.as_ref() {
                 let uv = Rect {
                     min: pos2(0.0f32, 0.0f32),
                     max: pos2(1.0f32, 1.0f32),
@@ -270,16 +264,8 @@ impl eframe::App for App {
                 rctx.dep_graph.mark_for_rerender();
                 let success = pollster::block_on(rctx.dep_graph.complete());
                 if success {
-                    ui.painter().image(rctx.tex_id, rect, uv, Color32::WHITE);
+                    ui.painter().image(*tex_id, rect, uv, Color32::WHITE);
                 }
-            } else {
-                ui.painter().rect(
-                    rect,
-                    1.0f32,
-                    Color32::WHITE,
-                    Stroke::new(2.0f32, Color32::BLACK),
-                    egui::StrokeKind::Inside,
-                );
             }
         });
     }
