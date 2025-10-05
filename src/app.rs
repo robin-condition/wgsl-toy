@@ -1,12 +1,15 @@
-use eframe::wgpu::Texture;
 use egui::{
-    pos2, Color32, ImageSource, KeyboardShortcut, Modifiers, Rect, Stroke, TextureHandle,
-    TextureId, Vec2,
+    pos2, Color32, KeyboardShortcut, Layout, Modifiers, Rect, RichText, Stroke, TextureId, Widget,
 };
+use egui_code_editor::{ColorTheme, Syntax};
 use shaderwheels_logic::rendering::{
     CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
 };
-use wgpu::{Extent3d, TextureFormat, TextureView};
+use wgpu::{Extent3d, TextureFormat};
+
+use crate::app::eguice_syntax::wgsl_syntax;
+
+mod eguice_syntax;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -19,11 +22,12 @@ pub struct App {
 
     #[serde(skip)]
     inf: Option<RenderCtx>,
+
+    current_shader_text: String,
 }
 
 pub struct RenderCtx {
     dep_graph: CompleteGraphicsDependencyGraph,
-    out_tex: TextureView,
     tex_id: TextureId,
 }
 
@@ -34,6 +38,7 @@ impl Default for App {
             label: "Hello World!".to_owned(),
             value: 2.7,
             inf: None,
+            current_shader_text: shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string(),
         }
     }
 }
@@ -52,6 +57,24 @@ impl App {
             Default::default()
         }
     }
+}
+
+struct EguiCodeEditorWrapperWidget<'a> {
+    edit: egui_code_editor::CodeEditor,
+    text: &'a mut String,
+}
+
+impl<'a> Widget for EguiCodeEditorWrapperWidget<'a> {
+    fn ui(mut self, ui: &mut egui::Ui) -> egui::Response {
+        self.edit.show(ui, self.text).response
+    }
+}
+
+fn egui_code_editor_to_widget(
+    edit: egui_code_editor::CodeEditor,
+    text: &mut String,
+) -> impl Widget {
+    EguiCodeEditorWrapperWidget { edit, text }
 }
 
 impl eframe::App for App {
@@ -105,7 +128,6 @@ impl eframe::App for App {
 
             let mut rctx = RenderCtx {
                 dep_graph: rendergraph,
-                out_tex: view,
                 tex_id,
             };
 
@@ -149,7 +171,54 @@ impl eframe::App for App {
             });
         });
 
-        egui::TopBottomPanel::bottom("editor_panel").show(ctx, |ui| {});
+        egui::SidePanel::right("editor_panel").show(ctx, |ui| {
+            //let target_size = ui.available_size();
+
+            let changed = //ui .add_sized(ui.available_size(),*/
+            ui.add(
+                    egui_code_editor_to_widget(
+                        egui_code_editor::CodeEditor::default()
+                            .id_source("editor!")
+                            .with_theme(ColorTheme::GRUVBOX)
+                            .with_syntax(wgsl_syntax())
+                            .with_numlines(true)
+                            .with_rows(50)
+                            .with_fontsize(14f32),
+                            &mut self.current_shader_text
+                    )
+                )
+                .changed();
+
+            ui.with_layout(Layout::bottom_up(egui::Align::Min), |bottom_ui| {
+                if let Some(rctx) = self.inf.as_mut() {
+                    let rt = if let Some(err) = rctx.dep_graph.get_compilation_error() {
+                        let err_text = match err {
+                            wgpu::Error::OutOfMemory { source: _ } => "",
+                            wgpu::Error::Validation {
+                                source: _,
+                                description,
+                            } => &description,
+                            wgpu::Error::Internal {
+                                source: _,
+                                description,
+                            } => &description,
+                        };
+                        RichText::new(err_text).color(Color32::RED)
+                    } else {
+                        RichText::new("Compilation successful.")
+                    };
+
+                    bottom_ui.label(rt.size(14f32));
+                }
+            });
+
+            if changed {
+                if let Some(rctx) = self.inf.as_mut() {
+                    rctx.dep_graph
+                        .set_shader_text(self.current_shader_text.clone());
+                }
+            }
+        });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             let rect = ui.max_rect();
@@ -159,7 +228,7 @@ impl eframe::App for App {
                     max: pos2(1.0f32, 1.0f32),
                 };
                 rctx.dep_graph.mark_for_rerender();
-                let success = futures::executor::block_on(rctx.dep_graph.complete());
+                let success = pollster::block_on(rctx.dep_graph.complete());
                 if success {
                     ui.painter().image(rctx.tex_id, rect, uv, Color32::WHITE);
                 }
@@ -174,18 +243,4 @@ impl eframe::App for App {
             }
         });
     }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }

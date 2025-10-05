@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use wgpu::{
-    util::{TextureBlitter, TextureBlitterBuilder}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device, Extent3d, PipelineCompilationOptions, PipelineLayout, PipelineLayoutDescriptor, Queue, ShaderModule, ShaderModuleDescriptor, ShaderStages, Surface, SurfaceConfiguration, SurfaceTarget, Texture, TextureDescriptor, TextureFormat, TextureView, TextureViewDescriptor
+    util::{TextureBlitter, TextureBlitterBuilder}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device, Extent3d, PipelineLayout, PipelineLayoutDescriptor, Queue, ShaderModule, ShaderModuleDescriptor, ShaderStages, Surface, Texture, TextureDescriptor, TextureFormat, TextureView, TextureViewDescriptor
 };
 
 #[derive(Default)]
@@ -34,7 +34,7 @@ pub struct CompleteGraphicsDependencyGraph {
     blitter: Option<TextureBlitter>,
     preoutput_tex: Option<PreoutputTexture>,
     preoutput_tex_view: Option<TextureView>,
-    module: Option<ShaderModule>,
+    module_comp_result: Option<Result<ShaderModule, wgpu::Error>>,
     pipeline: Option<ComputePipeline>,
     preout_texture_rendered: bool,
     output_view_rendered: bool,
@@ -60,11 +60,20 @@ impl CompleteGraphicsDependencyGraph {
             pipeline_layout: None,
             preoutput_tex: None,
             preoutput_tex_view: None,
-            module: None,
+            module_comp_result: None,
             pipeline: None,
             preout_texture_rendered: false,
             output_view_rendered: false,
         }
+    }
+
+
+    fn get_module_or_none(&self) -> Option<&ShaderModule> {
+        self.module_comp_result.as_ref()?.as_ref().map_or(None, |f| Some(f))
+    }
+
+    pub fn get_compilation_error(&self) -> Option<&wgpu::Error> {
+        self.module_comp_result.as_ref()?.as_ref().err()
     }
 
     // Any of the setters:
@@ -77,8 +86,8 @@ impl CompleteGraphicsDependencyGraph {
     pub fn set_shader_text(&mut self, text: String) {
         self.shader_text = Some(text);
 
-        // Invalidate module.
-        self.module = None;
+        // Invalidate module compilation.
+        self.module_comp_result = None;
     }
 
     pub fn set_entry_point(&mut self, text: String) {
@@ -149,11 +158,11 @@ impl CompleteGraphicsDependencyGraph {
         }
 
         // Create the module from the shader text
-        if let None = self.module {
+        if let None = self.module_comp_result {
             // Invalidate pipeline
             self.pipeline = None;
 
-            self.try_make_module();
+            self.try_make_module().await;
         }
 
         // TODO: Create bind group layouts from spec.
@@ -312,7 +321,7 @@ impl CompleteGraphicsDependencyGraph {
         let hardware = self.hardware.as_ref()?;
         let pipeline_layout = self.pipeline_layout.as_ref()?;
 
-        let module = self.module.as_ref()?;
+        let module = self.get_module_or_none()?;
         let entry_point = self.entry_point.as_ref()?;
 
         let comp_opts = wgpu::PipelineCompilationOptions::default();
@@ -331,16 +340,26 @@ impl CompleteGraphicsDependencyGraph {
         Some(())
     }
 
-    fn try_make_module(&mut self) -> Option<()> {
+    async fn try_make_module(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
         let shader_text = self.shader_text.as_ref()?.clone();
+
+        hardware.deviceref.push_error_scope(wgpu::ErrorFilter::Validation);
+
         let module = hardware
             .deviceref
             .create_shader_module(ShaderModuleDescriptor {
                 label: Some("Compute Module"),
                 source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
             });
-        self.module = Some(module);
+        
+        let errs = hardware.deviceref.pop_error_scope().await;
+        if let Some(err) = errs {
+            self.module_comp_result = Some(Err(err));
+        }
+        else {
+            self.module_comp_result = Some(Ok(module));
+        }
         Some(())
     }
 
