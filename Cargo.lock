@@ -5987,7 +5987,3 @@ dependencies = [
  "syn",
  "winnow",
 ]
-
-[[patch.unused]]
-name = "wgpu"
-version = "27.0.1"
