@@ -1,12 +1,14 @@
-use eframe::egui_wgpu::RenderState;
-use egui::{pos2, Color32, KeyboardShortcut, Layout, Modifiers, Rect, RichText, TextureId, Widget};
+use egui::{Color32, KeyboardShortcut, Layout, Modifiers, RichText, Widget};
 use egui_code_editor::ColorTheme;
-use shaderwheels_logic::rendering::{
-    CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
-};
-use wgpu::{wgt::TextureDescriptor, Extent3d, TextureFormat};
+use egui_tiles::Tree;
 
-use crate::app::{egui_shaderwheels_logic::RenderCtx, eguice_syntax::wgsl_syntax};
+mod tiles_tree_stuff;
+
+use crate::app::{
+    egui_shaderwheels_logic::RenderCtx,
+    eguice_syntax::wgsl_syntax,
+    tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
+};
 
 mod egui_shaderwheels_logic;
 mod eguice_syntax;
@@ -16,6 +18,9 @@ mod eguice_syntax;
 pub struct App {
     #[serde(skip)]
     inf: RenderCtx,
+
+    #[serde(skip)]
+    tree: Tree<ShaderWheelsPane>,
 
     current_shader_text: String,
 
@@ -33,6 +38,7 @@ impl Default for App {
             current_shader_text: shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string(),
             compile_on_change: false,
             recompute_on_invalidate: false,
+            tree: create_basic_tree(),
         }
     }
 }
@@ -183,7 +189,12 @@ impl eframe::App for App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            egui_shaderwheels_logic::draw(&mut self.inf, ui);
+            let mut behav = TreeBehavior {
+                rctx: &mut self.inf,
+            };
+            self.tree.ui(&mut behav, ui);
+            //Tree::new("tree", root, tiles)
+            //egui_shaderwheels_logic::draw(&mut self.inf, ui);
         });
     }
 }
