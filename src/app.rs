@@ -1,4 +1,12 @@
-use egui::{KeyboardShortcut, Modifiers};
+use eframe::wgpu::Texture;
+use egui::{
+    pos2, Color32, ImageSource, KeyboardShortcut, Modifiers, Rect, Stroke, TextureHandle,
+    TextureId, Vec2,
+};
+use shaderwheels_logic::rendering::{
+    CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
+};
+use wgpu::{Extent3d, TextureFormat, TextureView};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -8,6 +16,15 @@ pub struct App {
 
     #[serde(skip)] // This how you opt-out of serialization of a field
     value: f32,
+
+    #[serde(skip)]
+    inf: Option<RenderCtx>,
+}
+
+pub struct RenderCtx {
+    dep_graph: CompleteGraphicsDependencyGraph,
+    out_tex: TextureView,
+    tex_id: TextureId,
 }
 
 impl Default for App {
@@ -16,6 +33,7 @@ impl Default for App {
             // Example stuff:
             label: "Hello World!".to_owned(),
             value: 2.7,
+            inf: None,
         }
     }
 }
@@ -46,6 +64,57 @@ impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
+
+        if let None = self.inf {
+            let renderstate = _frame.wgpu_render_state().unwrap();
+            let draw_size = (512u32, 512u32);
+            let texture = renderstate.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("drawtexture"),
+                size: Extent3d {
+                    width: draw_size.0,
+                    height: draw_size.1,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let tex_id = renderstate.renderer.write().register_native_texture(
+                &renderstate.device,
+                &view,
+                eframe::wgpu::FilterMode::Linear,
+            );
+
+            let rendergraph = CompleteGraphicsDependencyGraph::new(CompleteGraphicsInitialConfig {
+                output_view: Some(view.clone()),
+                output_format: Some(TextureFormat::Rgba8Unorm),
+                hardware: Some(GPUAdapterInfo {
+                    deviceref: renderstate.device.clone(),
+                    queueref: renderstate.queue.clone(),
+                }),
+                shader_text: None,
+                entry_point: None,
+                preoutput_size: Some((512, 512)),
+            });
+
+            let mut rctx = RenderCtx {
+                dep_graph: rendergraph,
+                out_tex: view,
+                tex_id,
+            };
+
+            rctx.dep_graph
+                .set_shader_text(shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string());
+            rctx.dep_graph.set_entry_point("main".to_string());
+
+            self.inf = Some(rctx);
+        }
 
         let mut popup = false;
 
@@ -80,33 +149,29 @@ impl eframe::App for App {
             });
         });
 
+        egui::TopBottomPanel::bottom("editor_panel").show(ctx, |ui| {});
+
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
-            });
-
-            ui.code_editor(&mut self.label);
-
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
+            let rect = ui.max_rect();
+            if let Some(rctx) = self.inf.as_mut() {
+                let uv = Rect {
+                    min: pos2(0.0f32, 0.0f32),
+                    max: pos2(1.0f32, 1.0f32),
+                };
+                rctx.dep_graph.mark_for_rerender();
+                let success = futures::executor::block_on(rctx.dep_graph.complete());
+                if success {
+                    ui.painter().image(rctx.tex_id, rect, uv, Color32::WHITE);
+                }
+            } else {
+                ui.painter().rect(
+                    rect,
+                    1.0f32,
+                    Color32::WHITE,
+                    Stroke::new(2.0f32, Color32::BLACK),
+                    egui::StrokeKind::Inside,
+                );
             }
-
-            ui.separator();
-
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/main/",
-                "Source code."
-            ));
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
-                egui::warn_if_debug_build(ui);
-            });
         });
     }
 }

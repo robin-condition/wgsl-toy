@@ -1,12 +1,18 @@
 use std::borrow::Cow;
 
 use wgpu::{
-    BindGroup, BindGroupLayout, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline,
-    ComputePipelineDescriptor, Device, Extent3d, PipelineCompilationOptions, PipelineLayout, Queue,
-    ShaderModule, ShaderModuleDescriptor, Surface, SurfaceConfiguration, SurfaceTarget, Texture,
-    TextureDescriptor, TextureFormat, TextureView, TextureViewDescriptor,
-    util::{TextureBlitter, TextureBlitterBuilder},
+    util::{TextureBlitter, TextureBlitterBuilder}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device, Extent3d, PipelineCompilationOptions, PipelineLayout, PipelineLayoutDescriptor, Queue, ShaderModule, ShaderModuleDescriptor, ShaderStages, Surface, SurfaceConfiguration, SurfaceTarget, Texture, TextureDescriptor, TextureFormat, TextureView, TextureViewDescriptor
 };
+
+#[derive(Default)]
+pub struct CompleteGraphicsInitialConfig {
+    pub hardware: Option<GPUAdapterInfo>,
+    pub output_format: Option<TextureFormat>,
+    pub shader_text: Option<String>,
+    pub entry_point: Option<String>,
+    pub preoutput_size: Option<(u32, u32)>,
+    pub output_view: Option<TextureView>,
+}
 
 pub struct CompleteGraphicsDependencyGraph {
     // Inputs
@@ -22,7 +28,10 @@ pub struct CompleteGraphicsDependencyGraph {
 
     // Computation results and scratchpad
     uniform_contents_correct: bool,
-    adapter_prep: Option<GPUAdapterPrep>,
+    bind_group_layout: Option<BindGroupLayout>,
+    bind_group: Option<BindGroup>,
+    pipeline_layout: Option<PipelineLayout>,
+    blitter: Option<TextureBlitter>,
     preoutput_tex: Option<PreoutputTexture>,
     preoutput_tex_view: Option<TextureView>,
     module: Option<ShaderModule>,
@@ -32,9 +41,30 @@ pub struct CompleteGraphicsDependencyGraph {
 }
 
 impl CompleteGraphicsDependencyGraph {
+    pub fn new(cfg: CompleteGraphicsInitialConfig) -> Self {
+        Self {
+            hardware: cfg.hardware,
+            unif_values: None,
+            output_format: cfg.output_format.map(|f| OutputFormat { format: f }),
+            preoutput_size: cfg.preoutput_size,
+            output_view: cfg
+                .output_view
+                .map(|f| OutputTextureView { output_view: f }),
+            shader_text: cfg.shader_text,
+            entry_point: cfg.entry_point,
 
-    pub fn new() -> Self {
-        todo!()
+            uniform_contents_correct: false,
+            blitter: None,
+            bind_group_layout: None,
+            bind_group: None,
+            pipeline_layout: None,
+            preoutput_tex: None,
+            preoutput_tex_view: None,
+            module: None,
+            pipeline: None,
+            preout_texture_rendered: false,
+            output_view_rendered: false,
+        }
     }
 
     // Any of the setters:
@@ -46,20 +76,19 @@ impl CompleteGraphicsDependencyGraph {
 
     pub fn set_shader_text(&mut self, text: String) {
         self.shader_text = Some(text);
-        
+
         // Invalidate module.
         self.module = None;
     }
 
     pub fn set_entry_point(&mut self, text: String) {
         self.entry_point = Some(text);
-        
+
         // Invalidate pipeline.
         self.pipeline = None;
     }
 
     pub fn set_uniform_contents(&mut self, contents: ()) {
-        
         // Invalidate uniform values on gpu
         self.uniform_contents_correct = false;
 
@@ -75,10 +104,12 @@ impl CompleteGraphicsDependencyGraph {
     }
 
     pub fn set_output_format(&mut self, output_format: TextureFormat) {
-        self.output_format = Some(OutputFormat { format: output_format });
+        self.output_format = Some(OutputFormat {
+            format: output_format,
+        });
 
         // TODO: invalidate the blitter.
-        todo!()
+        self.blitter = None;
     }
 
     pub fn set_preoutput_size(&mut self, preout_size: (u32, u32)) {
@@ -94,7 +125,7 @@ impl CompleteGraphicsDependencyGraph {
     }
 
     // Recomputes all necessary or invalidated steps.
-    pub async fn complete(&mut self) {
+    pub async fn complete(&mut self) -> bool {
         // Create the compute result ("preout") texture
         if let None = self.preoutput_tex {
             // Invalidate preout view
@@ -105,12 +136,60 @@ impl CompleteGraphicsDependencyGraph {
             self.try_make_preout_tex();
         }
 
+        // Create preoutput texture view
+        if let None = self.preoutput_tex_view {
+            // Invalidate compute result
+            self.preout_texture_rendered = false;
+            // Invalidate bind group
+            self.bind_group = None;
+            // Invalidate copied draw? Gonna skip for now
+            //self.output_view_rendered = false;
+
+            self.try_make_preout_view();
+        }
+
         // Create the module from the shader text
         if let None = self.module {
             // Invalidate pipeline
             self.pipeline = None;
 
             self.try_make_module();
+        }
+
+        // TODO: Create bind group layouts from spec.
+        // Current version just creates the basic one.
+        if let None = self.bind_group_layout {
+            // Invalidate bind group and pipeline layout
+            self.pipeline_layout = None;
+            self.bind_group = None;
+
+            self.try_make_bind_group_layout();
+        }
+
+        // Create blitter
+        if let None = self.blitter {
+            // Only thing to invalidate is output draw, and that's only available on request
+
+            self.try_make_blitter();
+        }
+
+        // TODO: Create pipeline layouts from spec
+        // Current version just creates a basic one.
+        if let None = self.pipeline_layout {
+            // Invalidate pipeline
+            self.pipeline = None;
+
+            self.try_make_pipeline_layout();
+        }
+
+        // TODO: Create bind groups from specification
+        // Current version just makes a basic one!
+        if let None = self.bind_group {
+            // Invalidate compute result and uniform correctness
+            self.preout_texture_rendered = false;
+            self.uniform_contents_correct = false;
+
+            self.try_make_bind_group();
         }
 
         // Create the compute pipeline
@@ -121,19 +200,7 @@ impl CompleteGraphicsDependencyGraph {
             self.try_make_pipeline();
         }
 
-        // TODO: Create bind groups from specification
-
         // TODO: Set uniform values from inputs
-
-        // Create preoutput texture view
-        if let None = self.preoutput_tex_view {
-            // Invalidate compute result
-            self.preout_texture_rendered = false;
-            // Invalidate copied draw? Gonna skip for now
-            //self.output_view_rendered = false;
-
-            self.try_make_preout_view();
-        }
 
         // Any GPU work to do at all, make encoder for it.
         if !self.output_view_rendered
@@ -143,14 +210,17 @@ impl CompleteGraphicsDependencyGraph {
             // Nothing to invalidate -- we're the whole ball game.
             // Even the compute output does not invalidate the drawn version, because that has to be externally requested.
 
-            self.try_render_output();
+            return self.try_render_output().unwrap_or(false);
         }
+
+        return false;
     }
 
-    fn try_render_output(&mut self) -> Option<()> {
+    fn try_render_output(&mut self) -> Option<bool> {
         let hardware = self.hardware.as_ref()?;
 
-        let bind_group_info = self.adapter_prep.as_ref()?;
+        let bind_group = self.bind_group.as_ref()?;
+        let blitter = self.blitter.as_ref()?;
 
         // These are `?`'d now even though they aren't needed until later because if we don't have them, we can't copy to render,
         // so we should just skip for now.
@@ -178,7 +248,7 @@ impl CompleteGraphicsDependencyGraph {
                     CompleteGraphicsDependencyGraph::try_recompute(
                         pipeline,
                         preout_size,
-                        bind_group_info,
+                        bind_group,
                         &mut encoder,
                     );
 
@@ -191,7 +261,7 @@ impl CompleteGraphicsDependencyGraph {
 
         // Blit/copy the compute result to the output view
         if !self.output_view_rendered {
-            bind_group_info.blitter.copy(
+            blitter.copy(
                 &hardware.deviceref,
                 &mut encoder,
                 preout_tex_view,
@@ -203,13 +273,13 @@ impl CompleteGraphicsDependencyGraph {
 
         hardware.queueref.submit([encoder.finish()]);
 
-        Some(())
+        Some(self.output_view_rendered)
     }
 
     fn try_recompute(
         pipeline: &ComputePipeline,
         preout_size: (u32, u32),
-        bind_group_info: &GPUAdapterPrep,
+        bind_group: &BindGroup,
         encoder: &mut wgpu::CommandEncoder,
     ) {
         let compute_pass_descriptor = ComputePassDescriptor {
@@ -221,7 +291,7 @@ impl CompleteGraphicsDependencyGraph {
         compute_pass.set_pipeline(pipeline);
 
         // TODO: Bind more groups
-        compute_pass.set_bind_group(0, &bind_group_info.bind_group, &[]);
+        compute_pass.set_bind_group(0, bind_group, &[]);
 
         let workgroup_counts = (preout_size.0.div_ceil(16u32), preout_size.1.div_ceil(16u32));
 
@@ -240,7 +310,7 @@ impl CompleteGraphicsDependencyGraph {
 
     fn try_make_pipeline(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
-        let layouts = self.adapter_prep.as_ref()?;
+        let pipeline_layout = self.pipeline_layout.as_ref()?;
 
         let module = self.module.as_ref()?;
         let entry_point = self.entry_point.as_ref()?;
@@ -249,7 +319,7 @@ impl CompleteGraphicsDependencyGraph {
 
         let descriptor = ComputePipelineDescriptor {
             label: Some("Compute Pipeline"),
-            layout: Some(&layouts.pipeline_layout),
+            layout: Some(pipeline_layout),
             module: module,
             entry_point: Some(entry_point.as_ref()),
             compilation_options: comp_opts,
@@ -263,12 +333,12 @@ impl CompleteGraphicsDependencyGraph {
 
     fn try_make_module(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
-        let shader_text = self.shader_text?;
+        let shader_text = self.shader_text.as_ref()?.clone();
         let module = hardware
             .deviceref
             .create_shader_module(ShaderModuleDescriptor {
                 label: Some("Compute Module"),
-                source: Cow::Owned(shader_text),
+                source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
             });
         self.module = Some(module);
         Some(())
@@ -305,6 +375,75 @@ impl CompleteGraphicsDependencyGraph {
 
         Some(())
     }
+
+    fn try_make_blitter(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+        let out_fmt = self.output_format.as_ref()?.format;
+
+        let blitter = TextureBlitterBuilder::new(&hardware.deviceref, out_fmt).build();
+        self.blitter = Some(blitter);
+
+        Some(())
+    }
+
+    fn try_make_bind_group_layout(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+
+        let layout = hardware
+            .deviceref
+            .create_bind_group_layout(&BindGroupLayoutDescriptor {
+                label: Some("bind group layout"),
+                entries: &[BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::StorageTexture {
+                        access: wgpu::StorageTextureAccess::WriteOnly,
+                        format: wgpu::TextureFormat::Rgba8Unorm,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                    },
+                    count: None,
+                }],
+            });
+        
+        self.bind_group_layout = Some(layout);
+
+        Some(())
+    }
+    
+    fn try_make_bind_group(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+        let bgl = self.bind_group_layout.as_ref()?;
+        let preout_view = self.preoutput_tex_view.as_ref()?;
+
+        let bg = hardware.deviceref.create_bind_group(&BindGroupDescriptor {
+            label: Some("Bind group!"),
+            layout: bgl,
+            entries: &[
+                BindGroupEntry{
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(preout_view),
+                }
+            ],
+        });
+
+        self.bind_group = Some(bg);
+        Some(())
+    }
+    
+    fn try_make_pipeline_layout(&mut self) -> Option<()> {
+        let hardware = self.hardware.as_ref()?;
+        let bgl = self.bind_group_layout.as_ref()?;
+
+        let pipeline_layout = hardware.deviceref.create_pipeline_layout(&PipelineLayoutDescriptor {
+            label: Some("Pipeline layout!"),
+            bind_group_layouts: &[bgl],
+            push_constant_ranges: &[],
+        });
+
+        self.pipeline_layout = Some(pipeline_layout);
+        
+        Some(())
+    }
 }
 
 pub struct GPUAdapterInfo {
@@ -329,24 +468,13 @@ pub struct PreoutputTexture {
     pub size: (u32, u32),
 }
 
-pub struct GPUAdapterPrep {
-    bind_group: BindGroup,
-    pipeline_layout: PipelineLayout,
-    blitter: TextureBlitter,
-}
-
 pub const DEFAULT_COMPUTE: &str = include_str!("compute.wgsl");
 
-pub struct PipelinePrep {
-    pipeline: ComputePipeline,
-}
-
-pub async fn create_device_info_no_surface() {}
-
+/*
 pub async fn prep_wgpu<'window>(
     surf_targ: SurfaceTarget<'window>,
     surface_size: (u32, u32),
-) -> GPUAdapterPrep<'window> {
+) {
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         //backends: Backends::GL,
         //flags: todo!(),
@@ -467,6 +595,7 @@ pub async fn prep_wgpu<'window>(
     }
 }
 
+
 pub fn prep_shader(prep: &GPUAdapterPrep, shader_text: String) -> PipelinePrep {
     let module = prep.device.create_shader_module(ShaderModuleDescriptor {
         label: None,
@@ -486,54 +615,4 @@ pub fn prep_shader(prep: &GPUAdapterPrep, shader_text: String) -> PipelinePrep {
 
     PipelinePrep { pipeline }
 }
-
-pub fn do_shader(gpu_prep: &GPUAdapterPrep, shader_prep: &PipelinePrep) {
-    let surface_texture = gpu_prep
-        .surface
-        .get_current_texture()
-        .expect("failed to acquire next swapchain texture");
-    let texture_view = surface_texture
-        .texture
-        .create_view(&wgpu::TextureViewDescriptor {
-            // Without add_srgb_suffix() the image we will be working with
-            // might not be "gamma correct".
-            format: Some(gpu_prep.surface_format.add_srgb_suffix()),
-            ..Default::default()
-        });
-
-    let mut encoder = gpu_prep.device.create_command_encoder(&Default::default());
-
-    let mut computepass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-        label: Some("MyPass"),
-        timestamp_writes: None,
-    });
-
-    computepass.set_pipeline(&shader_prep.pipeline);
-
-    computepass.set_bind_group(0, &gpu_prep.bind_group, &[]);
-
-    let workgroup_size = (16, 16);
-
-    let workgroup_counts = (
-        gpu_prep.texture_dimensions.0.div_ceil(workgroup_size.0),
-        gpu_prep.texture_dimensions.1.div_ceil(workgroup_size.1),
-    );
-    //logging::log!("counts: {:?}", workgroup_counts);
-    //logging::log!("img size: {:?}", gpu_prep.texture_dimensions);
-    computepass.dispatch_workgroups(workgroup_counts.0, workgroup_counts.1, 1);
-
-    drop(computepass);
-
-    gpu_prep.blitter.copy(
-        &gpu_prep.device,
-        &mut encoder,
-        &gpu_prep.view,
-        &texture_view,
-    );
-
-    // Submit the command in the queue to execute
-    gpu_prep.queue.submit([encoder.finish()]);
-    //window.pre_present_notify();
-
-    surface_texture.present();
-}
+    */
