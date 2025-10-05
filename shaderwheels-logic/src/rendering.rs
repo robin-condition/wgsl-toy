@@ -23,6 +23,16 @@ pub struct CompleteGraphicsInitialConfig {
     pub recompute_on_invalidate: bool,
 }
 
+#[cfg(target_arch = "wasm32")]
+    pub fn process_future(fut: impl Future<Output = ()> + 'static) {
+        wasm_bindgen_futures::spawn_local(fut);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn process_future(fut: impl Future<Output = ()> + 'static) {
+        pollster::block_on(fut);
+    }
+
 pub type ModuleCompResult = Result<ShaderModule, wgpu::Error>;
 
 #[derive(Default)]
@@ -396,23 +406,13 @@ impl CompleteGraphicsDependencyGraph {
         }
     }
 
-    #[cfg(target_arch = "wasm32")]
-    fn process_future(fut: impl Future<Output = ()> + 'static) {
-        wasm_bindgen_futures::spawn_local(fut);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn process_future(fut: impl Future<Output = ()> + 'static) {
-        pollster::block_on(fut);
-    }
-
     fn try_make_module_compilation(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
         let shader_text = self.shader_text.as_ref()?.clone();
 
         let (sendr, recvr) = std::sync::mpsc::channel::<ModuleCompResult>();
 
-        Self::process_future(
+        process_future(
             Self::try_make_module_compilation_future(hardware.deviceref.clone(), shader_text, sendr)
         );
         self.comp_channel = Some(recvr);

@@ -1,10 +1,11 @@
-use egui::{KeyboardShortcut, Modifiers, Widget};
+use egui::{KeyboardShortcut, Modifiers, ViewportCommand, Widget};
 use egui_tiles::Tree;
 
 mod tiles_tree_stuff;
 
 use crate::app::{
     egui_shaderwheels_logic::RenderCtx,
+    shader_content_manager::{ShaderInfo, ShaderStorageConnection, ShaderStorageConnectionManager},
     tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
 };
 
@@ -13,6 +14,7 @@ mod editor_gui;
 mod egui_shaderwheels_logic;
 mod eguice_syntax;
 mod error_viewer;
+mod shader_content_manager;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
@@ -21,9 +23,12 @@ pub struct App {
     inf: RenderCtx,
 
     #[serde(skip)]
+    storage_manager: ShaderStorageConnectionManager,
+
+    #[serde(skip)]
     tree: Tree<ShaderWheelsPane>,
 
-    current_shader_text: String,
+    current_shader_inf: ShaderInfo,
 
     #[serde(skip)]
     compile_on_change: bool,
@@ -33,9 +38,10 @@ impl Default for App {
     fn default() -> Self {
         Self {
             inf: RenderCtx::default(),
-            current_shader_text: shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string(),
-            compile_on_change: false,
+            current_shader_inf: ShaderInfo::default(),
+            compile_on_change: true,
             tree: create_basic_tree(),
+            storage_manager: ShaderStorageConnectionManager::default(),
         }
     }
 }
@@ -58,7 +64,7 @@ impl App {
         let mut rctx = egui_shaderwheels_logic::onetime_hardware_setup(cc);
 
         rctx.dep_graph
-            .set_shader_text(state.current_shader_text.clone());
+            .set_shader_text(state.current_shader_inf.contents.clone());
         rctx.dep_graph.set_entry_point("main".to_string());
 
         Self { inf: rctx, ..state }
@@ -94,6 +100,17 @@ impl eframe::App for App {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
+        let changed = self
+            .storage_manager
+            .connection
+            .saving_needed(&self.current_shader_inf);
+        let viewport_title = if changed {
+            self.current_shader_inf.name.clone() + "*"
+        } else {
+            self.current_shader_inf.name.clone()
+        } + " - ShaderWheels";
+        ctx.send_viewport_cmd(ViewportCommand::Title(viewport_title));
+
         let mut saved = false;
 
         ctx.input_mut(|i| {
@@ -104,7 +121,10 @@ impl eframe::App for App {
 
         if saved {
             // Saving should happen here!
+            self.storage_manager.start_save(&self.current_shader_inf);
         }
+
+        self.storage_manager.update();
 
         _frame.wgpu_render_state().unwrap();
 
@@ -131,7 +151,7 @@ impl eframe::App for App {
             let mut recomp_on_invalid = self.inf.dep_graph.recompute_on_invalidation;
             let mut behav = TreeBehavior {
                 rctx: &mut self.inf,
-                current_shader_text: &mut self.current_shader_text,
+                current_shader_text: &mut self.current_shader_inf.contents,
                 compile_on_change: &mut self.compile_on_change,
                 recompute_on_invalidate: &mut recomp_on_invalid,
                 renderstate: _frame.wgpu_render_state().as_ref().unwrap(),
@@ -147,7 +167,7 @@ impl eframe::App for App {
             if self.compile_on_change && (shader_changed || recomp_changed) {
                 self.inf
                     .dep_graph
-                    .set_shader_text(self.current_shader_text.clone());
+                    .set_shader_text(self.current_shader_inf.contents.clone());
             }
             //Tree::new("tree", root, tiles)
             //egui_shaderwheels_logic::draw(&mut self.inf, ui);
