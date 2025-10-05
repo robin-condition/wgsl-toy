@@ -2,6 +2,7 @@ use eframe::egui_wgpu::RenderState;
 use egui_tiles::{Behavior, UiResponse};
 
 use crate::app::{
+    cfg_pane::add_transient_cfg_pane,
     editor_gui::add_editor,
     egui_shaderwheels_logic::{self, RenderCtx},
     error_viewer::add_error_viewer,
@@ -12,6 +13,7 @@ pub enum PaneType {
     CodeEditor,
     ErrorViewer,
     RenderTarget,
+    LiveConfig,
 }
 
 impl PaneType {
@@ -20,6 +22,7 @@ impl PaneType {
             PaneType::CodeEditor => "Editor",
             PaneType::ErrorViewer => "Error Viewer",
             PaneType::RenderTarget => "Render Viewer",
+            PaneType::LiveConfig => "Minute Config",
         }
     }
 }
@@ -47,11 +50,13 @@ pub fn create_basic_tree() -> egui_tiles::Tree<ShaderWheelsPane> {
     let render_pane = gen_pane(PaneType::RenderTarget);
     let editor_pane = gen_pane(PaneType::CodeEditor);
     let error_pane = gen_pane(PaneType::ErrorViewer);
+    let transient_cfg_pane = gen_pane(PaneType::LiveConfig);
 
     let right_half = {
         let edit = tiles.insert_pane(editor_pane);
         let error = tiles.insert_pane(error_pane);
-        tiles.insert_vertical_tile(vec![edit, error])
+        let cfg = tiles.insert_pane(transient_cfg_pane);
+        tiles.insert_vertical_tile(vec![edit, cfg, error])
     };
 
     let left_half = tiles.insert_pane(render_pane);
@@ -69,6 +74,10 @@ pub struct TreeBehavior<'a> {
     pub compile_on_change: &'a mut bool,
     pub recompute_on_invalidate: &'a mut bool,
     pub renderstate: &'a RenderState,
+
+    // outputs:
+    pub shader_text_changed: bool,
+    pub recompute_on_textchange_changed: bool,
 }
 
 impl<'a> Behavior<ShaderWheelsPane> for TreeBehavior<'a> {
@@ -81,13 +90,7 @@ impl<'a> Behavior<ShaderWheelsPane> for TreeBehavior<'a> {
         let drag_rect = match pane.kind {
             PaneType::CodeEditor => {
                 let lab = ui.label("I'm an editor");
-                add_editor(
-                    self.rctx,
-                    self.current_shader_text,
-                    self.compile_on_change,
-                    self.recompute_on_invalidate,
-                    ui,
-                );
+                add_editor(self.current_shader_text, &mut self.shader_text_changed, ui);
                 lab
             }
             PaneType::ErrorViewer => {
@@ -98,6 +101,16 @@ impl<'a> Behavior<ShaderWheelsPane> for TreeBehavior<'a> {
             PaneType::RenderTarget => {
                 let lab = ui.label("I'm a render target");
                 egui_shaderwheels_logic::draw(self.rctx, self.renderstate, ui);
+                lab
+            }
+            PaneType::LiveConfig => {
+                let lab = ui.label("I'm a transient config panel");
+                add_transient_cfg_pane(
+                    self.compile_on_change,
+                    self.recompute_on_invalidate,
+                    &mut self.recompute_on_textchange_changed,
+                    ui,
+                );
                 lab
             }
         }

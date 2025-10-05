@@ -8,6 +8,7 @@ use crate::app::{
     tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
 };
 
+mod cfg_pane;
 mod editor_gui;
 mod egui_shaderwheels_logic;
 mod eguice_syntax;
@@ -26,9 +27,6 @@ pub struct App {
 
     #[serde(skip)]
     compile_on_change: bool,
-
-    #[serde(skip)]
-    recompute_on_invalidate: bool,
 }
 
 impl Default for App {
@@ -37,7 +35,6 @@ impl Default for App {
             inf: RenderCtx::default(),
             current_shader_text: shaderwheels_logic::rendering::DEFAULT_COMPUTE.to_string(),
             compile_on_change: false,
-            recompute_on_invalidate: false,
             tree: create_basic_tree(),
         }
     }
@@ -131,14 +128,27 @@ impl eframe::App for App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            let mut recomp_on_invalid = self.inf.dep_graph.recompute_on_invalidation;
             let mut behav = TreeBehavior {
                 rctx: &mut self.inf,
                 current_shader_text: &mut self.current_shader_text,
                 compile_on_change: &mut self.compile_on_change,
-                recompute_on_invalidate: &mut self.recompute_on_invalidate,
+                recompute_on_invalidate: &mut recomp_on_invalid,
                 renderstate: _frame.wgpu_render_state().as_ref().unwrap(),
+
+                shader_text_changed: false,
+                recompute_on_textchange_changed: false,
             };
             self.tree.ui(&mut behav, ui);
+            let shader_changed = behav.shader_text_changed;
+            let recomp_changed = behav.recompute_on_textchange_changed;
+            self.inf.dep_graph.recompute_on_invalidation = recomp_on_invalid;
+
+            if self.compile_on_change && (shader_changed || recomp_changed) {
+                self.inf
+                    .dep_graph
+                    .set_shader_text(self.current_shader_text.clone());
+            }
             //Tree::new("tree", root, tiles)
             //egui_shaderwheels_logic::draw(&mut self.inf, ui);
         });
