@@ -3,7 +3,7 @@ use egui::{pos2, Color32, Rect, TextureId, Ui};
 use shaderwheels_logic::rendering::{
     CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
 };
-use wgpu::{Extent3d, TextureDescriptor, TextureFormat};
+use wgpu::{naga::proc, Extent3d, TextureDescriptor, TextureFormat};
 
 use crate::app::egui_shaderwheels_logic;
 
@@ -98,7 +98,9 @@ pub(crate) fn draw(rctx: &mut RenderCtx, renderstate: &RenderState, ui: &mut Ui)
             max: pos2(1.0f32, 1.0f32),
         };
         rctx.dep_graph.mark_for_rerender();
-        let success = pollster::block_on(rctx.dep_graph.complete());
+
+        let success = rctx.dep_graph.complete();
+
         if success {
             ui.painter().image(*tex_id, rect, uv, Color32::WHITE);
         }

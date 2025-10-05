@@ -1,7 +1,15 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    sync::mpsc::{Receiver, Sender},
+};
 
 use wgpu::{
-    util::{TextureBlitter, TextureBlitterBuilder}, BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, Device, Extent3d, PipelineLayout, PipelineLayoutDescriptor, Queue, ShaderModule, ShaderModuleDescriptor, ShaderStages, Surface, Texture, TextureDescriptor, TextureFormat, TextureView, TextureViewDescriptor
+    util::{TextureBlitter, TextureBlitterBuilder},
+    BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
+    BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline,
+    ComputePipelineDescriptor, Device, Extent3d, PipelineLayout, PipelineLayoutDescriptor, Queue,
+    ShaderModule, ShaderModuleDescriptor, ShaderStages, Surface, Texture, TextureDescriptor,
+    TextureFormat, TextureView, TextureViewDescriptor,
 };
 
 #[derive(Default)]
@@ -12,8 +20,10 @@ pub struct CompleteGraphicsInitialConfig {
     pub entry_point: Option<String>,
     pub preoutput_size: Option<(u32, u32)>,
     pub output_view: Option<TextureView>,
-    pub recompute_on_invalidate: bool
+    pub recompute_on_invalidate: bool,
 }
+
+pub type ModuleCompResult = Result<ShaderModule, wgpu::Error>;
 
 #[derive(Default)]
 pub struct CompleteGraphicsDependencyGraph {
@@ -29,6 +39,9 @@ pub struct CompleteGraphicsDependencyGraph {
     entry_point: Option<String>,
     pub recompute_on_invalidation: bool,
 
+    // Channels
+    comp_channel: Option<Receiver<ModuleCompResult>>,
+
     // Computation results and scratchpad
     uniform_contents_correct: bool,
     bind_group_layout: Option<BindGroupLayout>,
@@ -37,7 +50,7 @@ pub struct CompleteGraphicsDependencyGraph {
     blitter: Option<TextureBlitter>,
     preoutput_tex: Option<PreoutputTexture>,
     preoutput_tex_view: Option<TextureView>,
-    module_comp_result: Option<Result<ShaderModule, wgpu::Error>>,
+    module_comp_result: Option<ModuleCompResult>,
     pipeline: Option<ComputePipeline>,
     preout_texture_rendered: bool,
     output_view_rendered: bool,
@@ -57,6 +70,8 @@ impl CompleteGraphicsDependencyGraph {
             entry_point: cfg.entry_point,
             recompute_on_invalidation: cfg.recompute_on_invalidate,
 
+            comp_channel: None,
+
             uniform_contents_correct: false,
             blitter: None,
             bind_group_layout: None,
@@ -71,9 +86,11 @@ impl CompleteGraphicsDependencyGraph {
         }
     }
 
-
     fn get_module_or_none(&self) -> Option<&ShaderModule> {
-        self.module_comp_result.as_ref()?.as_ref().map_or(None, |f| Some(f))
+        self.module_comp_result
+            .as_ref()?
+            .as_ref()
+            .map_or(None, |f| Some(f))
     }
 
     pub fn get_compilation_error(&self) -> Option<&wgpu::Error> {
@@ -98,8 +115,8 @@ impl CompleteGraphicsDependencyGraph {
     pub fn set_shader_text(&mut self, text: String) {
         self.shader_text = Some(text);
 
-        // Invalidate module compilation.
-        self.module_comp_result = None;
+        // Invalidate module compilation operation.
+        self.comp_channel = None;
     }
 
     pub fn set_entry_point(&mut self, text: String) {
@@ -146,7 +163,7 @@ impl CompleteGraphicsDependencyGraph {
     }
 
     // Recomputes all necessary or invalidated steps.
-    pub async fn complete(&mut self) -> bool {
+    pub fn complete(&mut self) -> bool {
         // Create the compute result ("preout") texture
         if let None = self.preoutput_tex {
             // Invalidate preout view
@@ -169,12 +186,22 @@ impl CompleteGraphicsDependencyGraph {
             self.try_make_preout_view();
         }
 
+        // Create the module compilation thread
+        if let None = self.comp_channel {
+            // Invalidate compilation result
+            self.module_comp_result = None;
+
+            // Set up compilation channel
+            self.try_make_module_compilation();
+        }
+
         // Create the module from the shader text
         if let None = self.module_comp_result {
             // Invalidate pipeline
             self.pipeline = None;
 
-            self.try_make_module().await;
+            // Get result from channel (modeled here as though a computation)
+            self.try_retrieve_module_result();
         }
 
         // TODO: Create bind group layouts from spec.
@@ -352,26 +379,43 @@ impl CompleteGraphicsDependencyGraph {
         Some(())
     }
 
-    async fn try_make_module(&mut self) -> Option<()> {
+    async fn try_make_module_compilation_future(device: Device, shader_text: String, sender: Sender<ModuleCompResult>) {
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+        let module = device.create_shader_module(ShaderModuleDescriptor {
+            label: Some("Compute Module"),
+            source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
+        });
+
+        let errs = device.pop_error_scope().await;
+
+        if let Some(err) = errs {
+            let _ = sender.send(Err(err));
+        } else {
+            let _ = sender.send(Ok(module));
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn process_future(fut: impl Future<Output = ()> + 'static) {
+        wasm_bindgen_futures::spawn_local(fut);
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn process_future(fut: impl Future<Output = ()> + 'static) {
+        pollster::block_on(fut);
+    }
+
+    fn try_make_module_compilation(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
         let shader_text = self.shader_text.as_ref()?.clone();
 
-        hardware.deviceref.push_error_scope(wgpu::ErrorFilter::Validation);
+        let (sendr, recvr) = std::sync::mpsc::channel::<ModuleCompResult>();
 
-        let module = hardware
-            .deviceref
-            .create_shader_module(ShaderModuleDescriptor {
-                label: Some("Compute Module"),
-                source: wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text)),
-            });
-        
-        let errs = hardware.deviceref.pop_error_scope().await;
-        if let Some(err) = errs {
-            self.module_comp_result = Some(Err(err));
-        }
-        else {
-            self.module_comp_result = Some(Ok(module));
-        }
+        Self::process_future(
+            Self::try_make_module_compilation_future(hardware.deviceref.clone(), shader_text, sendr)
+        );
+        self.comp_channel = Some(recvr);
         Some(())
     }
 
@@ -435,12 +479,12 @@ impl CompleteGraphicsDependencyGraph {
                     count: None,
                 }],
             });
-        
+
         self.bind_group_layout = Some(layout);
 
         Some(())
     }
-    
+
     fn try_make_bind_group(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
         let bgl = self.bind_group_layout.as_ref()?;
@@ -449,30 +493,40 @@ impl CompleteGraphicsDependencyGraph {
         let bg = hardware.deviceref.create_bind_group(&BindGroupDescriptor {
             label: Some("Bind group!"),
             layout: bgl,
-            entries: &[
-                BindGroupEntry{
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(preout_view),
-                }
-            ],
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(preout_view),
+            }],
         });
 
         self.bind_group = Some(bg);
         Some(())
     }
-    
+
     fn try_make_pipeline_layout(&mut self) -> Option<()> {
         let hardware = self.hardware.as_ref()?;
         let bgl = self.bind_group_layout.as_ref()?;
 
-        let pipeline_layout = hardware.deviceref.create_pipeline_layout(&PipelineLayoutDescriptor {
-            label: Some("Pipeline layout!"),
-            bind_group_layouts: &[bgl],
-            push_constant_ranges: &[],
-        });
+        let pipeline_layout =
+            hardware
+                .deviceref
+                .create_pipeline_layout(&PipelineLayoutDescriptor {
+                    label: Some("Pipeline layout!"),
+                    bind_group_layouts: &[bgl],
+                    push_constant_ranges: &[],
+                });
 
         self.pipeline_layout = Some(pipeline_layout);
-        
+
+        Some(())
+    }
+    
+    fn try_retrieve_module_result(&mut self) -> Option<()> {
+        let recvr = self.comp_channel.as_ref()?;
+
+        if let Ok(res) = recvr.try_recv() {
+            self.module_comp_result = Some(res);
+        }
         Some(())
     }
 }

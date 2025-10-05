@@ -4062,6 +4062,7 @@ dependencies = [
  "pollster",
  "serde",
  "serde_json",
+ "wasm-bindgen-futures",
  "wgpu",
 ]
 
