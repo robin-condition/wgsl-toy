@@ -1,0 +1,35 @@
+[package]
+name = "wgsl-toy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+shaderwheels-logic = {path="../shaderwheels-logic"}
+openidconnect = "4.0.1"
+serde_json = "1.0.145"
+serde = { version = "1.0.226", default-features = false, features = ["derive"] }
+reqwest = { version = "0.12.23", features = ["json"] }
+wgpu = {version="25.0.2", features=["webgpu"]}
+eframe = { version = "0.32.3", default-features = false, features = ["persistence", "wgpu", "wayland", "x11", "accesskit", "default_fonts"] }
+egui = "0.32.3"
+log = "0.4.28"
+egui_code_editor = "0.2.17"
+egui_tiles = "0.13.0"
+rfd = "0.15.4"
+
+
+[dependencies.image]
+version = "0.25.8"
+default-features = false
+features = ["png"]
+
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11.8"
+pollster = "0.4.0"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen-futures = "0.4.50"
+web-sys = "0.3.70"              # to access the DOM (to hide the loading text)
