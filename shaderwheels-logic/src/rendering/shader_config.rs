@@ -1,6 +1,7 @@
+#[derive(Clone, Copy)]
 pub enum ShaderLanguage {
     Wgsl,
-    Glsl,
+    //Glsl,
 }
 
 pub enum ShaderBackend {

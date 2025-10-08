@@ -2,8 +2,7 @@ use cardigan_incremental::{GeneralVersionedComp, Versioned, VersionedInputs, mem
 use wgpu::{
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline,
-    ComputePipelineDescriptor, PipelineLayout, ShaderModule,
-    ShaderStages, Surface, TextureView,
+    ComputePipelineDescriptor, PipelineLayout, ShaderModule, ShaderStages, Surface, TextureView,
     util::TextureBlitter,
 };
 
