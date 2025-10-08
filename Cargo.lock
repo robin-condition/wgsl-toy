@@ -700,6 +700,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cardigan-incremental"
+version = "0.1.0"
+source = "git+https://github.com/robin-condition/cardigan.git#b0f3128df7eb12949175a6658cb4365a8064a8ee"
+dependencies = [
+ "cardigan-macros",
+]
+
+[[package]]
+name = "cardigan-macros"
+version = "0.1.0"
+source = "git+https://github.com/robin-condition/cardigan.git#b0f3128df7eb12949175a6658cb4365a8064a8ee"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -787,10 +805,6 @@ dependencies = [
  "bytes",
  "memchr",
 ]
-
-[[package]]
-name = "comp-versions"
-version = "0.1.0"
 
 [[package]]
 name = "concurrent-queue"
@@ -4144,6 +4158,7 @@ dependencies = [
 name = "shaderwheels-logic"
 version = "0.1.0"
 dependencies = [
+ "cardigan-incremental",
  "openidconnect",
  "pollster",
  "serde",

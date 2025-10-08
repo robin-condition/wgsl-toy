@@ -1,5 +1,5 @@
 use eframe::egui_wgpu::RenderState;
-use egui::{pos2, Color32, Rect, TextureId, Ui};
+use egui::{Color32, Rect, TextureId, Ui, pos2};
 use shaderwheels_logic::rendering::{
     CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
 };

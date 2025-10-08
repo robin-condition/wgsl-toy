@@ -4,14 +4,13 @@ use std::{
 };
 
 use wgpu::{
-    util::{TextureBlitter, TextureBlitterBuilder},
     BindGroup, BindGroupDescriptor, BindGroupEntry, BindGroupLayout, BindGroupLayoutDescriptor,
     BindGroupLayoutEntry, CommandEncoderDescriptor, ComputePassDescriptor, ComputePipeline,
     ComputePipelineDescriptor, Device, Extent3d, PipelineLayout, PipelineLayoutDescriptor, Queue,
     ShaderModule, ShaderModuleDescriptor, ShaderStages, Surface, Texture, TextureDescriptor,
     TextureFormat, TextureView, TextureViewDescriptor,
+    util::{TextureBlitter, TextureBlitterBuilder},
 };
-
 
 #[derive(Default)]
 pub struct CompleteGraphicsInitialConfig {
@@ -25,14 +24,14 @@ pub struct CompleteGraphicsInitialConfig {
 }
 
 #[cfg(target_arch = "wasm32")]
-    pub fn process_future(fut: impl Future<Output = ()> + 'static) {
-        wasm_bindgen_futures::spawn_local(fut);
-    }
+pub fn process_future(fut: impl Future<Output = ()> + 'static) {
+    wasm_bindgen_futures::spawn_local(fut);
+}
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn process_future(fut: impl Future<Output = ()> + 'static) {
-        pollster::block_on(fut);
-    }
+#[cfg(not(target_arch = "wasm32"))]
+pub fn process_future(fut: impl Future<Output = ()> + 'static) {
+    pollster::block_on(fut);
+}
 
 pub type ModuleCompResult = Result<ShaderModule, wgpu::Error>;
 
@@ -390,7 +389,11 @@ impl CompleteGraphicsDependencyGraph {
         Some(())
     }
 
-    async fn try_make_module_compilation_future(device: Device, shader_text: String, sender: Sender<ModuleCompResult>) {
+    async fn try_make_module_compilation_future(
+        device: Device,
+        shader_text: String,
+        sender: Sender<ModuleCompResult>,
+    ) {
         device.push_error_scope(wgpu::ErrorFilter::Validation);
 
         let module = device.create_shader_module(ShaderModuleDescriptor {
@@ -413,9 +416,11 @@ impl CompleteGraphicsDependencyGraph {
 
         let (sendr, recvr) = std::sync::mpsc::channel::<ModuleCompResult>();
 
-        process_future(
-            Self::try_make_module_compilation_future(hardware.deviceref.clone(), shader_text, sendr)
-        );
+        process_future(Self::try_make_module_compilation_future(
+            hardware.deviceref.clone(),
+            shader_text,
+            sendr,
+        ));
         self.comp_channel = Some(recvr);
         Some(())
     }
@@ -521,7 +526,7 @@ impl CompleteGraphicsDependencyGraph {
 
         Some(())
     }
-    
+
     fn try_retrieve_module_result(&mut self) -> Option<()> {
         let recvr = self.comp_channel.as_ref()?;
 
@@ -553,7 +558,6 @@ pub struct PreoutputTexture {
     pub texture: Texture,
     pub size: (u32, u32),
 }
-
 
 /*
 pub async fn prep_wgpu<'window>(

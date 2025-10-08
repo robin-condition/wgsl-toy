@@ -1,35 +1,60 @@
 use std::sync::mpsc::Receiver;
 
+use cardigan_incremental::{ReceivedVersioned, Versioned, memoized};
 use wgpu::TextureView;
 
 use crate::rendering::{
-    graphics_backend_worker::compute_worker::GPUAdapterInfo, shader_config::{ShaderConfig, ShaderLanguage},
+    graphics_backend_worker::{
+        compute_worker::ComputeWorkerPart,
+        shared::{BackendWorker, GPUAdapterInfo},
+    },
+    shader_config::{ShaderConfig, ShaderLanguage},
 };
 
 mod compute_worker;
 mod fragment_worker;
-
-trait BackendWorker {
-    fn invalidate_shader_contents(&mut self);
-    fn invalidate_shaderlanguage(&mut self);
-    fn invalidate_append_environment(&mut self);
-    fn invalidate_hardware(&mut self);
-}
+mod shared;
 
 enum ArbitraryWorker {
-    ComputeWorker(),
+    ComputeWorker(ComputeWorkerPart),
     FragmentWorker(),
 }
 
+impl BackendWorker for ArbitraryWorker {
+    async fn step(
+        &mut self,
+        preout_size: &Versioned<(u32, u32)>,
+        hardware: &Versioned<&GPUAdapterInfo>,
+        module: &Versioned<&wgpu::ShaderModule>,
+        entry_point: &Versioned<&String>,
+        blitter: &Versioned<&wgpu::util::TextureBlitter>,
+        render_output_on_invalidated: bool,
+        output_view: &Versioned<&TextureView>,
+    ) -> bool {
+        match self {
+            ArbitraryWorker::ComputeWorker(compute_worker_part) => {
+                compute_worker_part
+                    .step(
+                        preout_size,
+                        hardware,
+                        module,
+                        entry_point,
+                        blitter,
+                        render_output_on_invalidated,
+                        output_view,
+                    )
+                    .await
+            }
+            ArbitraryWorker::FragmentWorker() => todo!(),
+        }
+    }
+}
+
 pub struct SettingsReceivers {
-    pub shader_text_recvr: Receiver<Option<String>>,
-    pub shader_lang_recvr: Receiver<Option<ShaderLanguage>>,
-    pub append_env_recvr: Receiver<bool>,
+    pub shader_content_recvr: ReceivedVersioned<ShaderConfig>,
 
-    pub complete_shader_ctx_receiver: Receiver<Option<ShaderConfig>>,
-
-    pub hardware_recvr: Receiver<GPUAdapterInfo>,
-    pub output_texture_view_recvr: Receiver<TextureView>,
+    pub hardware_recvr: ReceivedVersioned<GPUAdapterInfo>,
+    pub output_texture_view_recvr: ReceivedVersioned<TextureView>,
 }
 
 pub struct Settings {
@@ -43,17 +68,11 @@ pub struct Settings {
 pub struct Worker {
     settings_recvrs: SettingsReceivers,
     settings: Settings,
-    backend: ArbitraryWorker,
+    backend: Versioned<ArbitraryWorker>,
 }
 
 impl Worker {
+    fn read_recvrs(&mut self) {}
 
-    fn read_recvrs(&mut self) {
-        self.settings_recvrs.append_env_recvr.
-    }
-
-
-    async fn step(&mut self) {
-
-    }
+    async fn step(&mut self) {}
 }

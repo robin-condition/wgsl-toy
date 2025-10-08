@@ -19,25 +19,28 @@ pub enum ShaderStorageTypePreference {
 }
 
 impl ShaderStorageTypePreference {
-    #[cfg(not(target_arch="wasm32"))]
+    #[cfg(not(target_arch = "wasm32"))]
     pub async fn realize(&self) -> Option<ShaderStorageLocation> {
         match self {
             ShaderStorageTypePreference::File => {
-                let picker = rfd::AsyncFileDialog::new().add_filter("ShaderWheels", &["shwl"])
-                .save_file().await;
+                let picker = rfd::AsyncFileDialog::new()
+                    .add_filter("ShaderWheels", &["shwl"])
+                    .save_file()
+                    .await;
 
                 let file_handle = picker?;
 
-                Some(ShaderStorageLocation::File(ShaderFileLocation { path: file_handle.path().to_path_buf() }))
-                
-            },
+                Some(ShaderStorageLocation::File(ShaderFileLocation {
+                    path: file_handle.path().to_path_buf(),
+                }))
+            }
             ShaderStorageTypePreference::DB => {
                 todo!()
-            },
+            }
         }
     }
 
-    #[cfg(target_arch="wasm32")]
+    #[cfg(target_arch = "wasm32")]
     pub async fn realize(&self) -> Option<ShaderStorageLocation> {
         todo!()
     }
@@ -58,8 +61,10 @@ pub enum ConcreteOrUndecidedLocation {
 impl ConcreteOrUndecidedLocation {
     pub async fn to_real_loc(self) -> Option<ShaderStorageLocation> {
         match self {
-            ConcreteOrUndecidedLocation::Undecided(shader_storage_type_preference) => shader_storage_type_preference.realize().await,
-            ConcreteOrUndecidedLocation::Concrete(loc) => Some(loc)
+            ConcreteOrUndecidedLocation::Undecided(shader_storage_type_preference) => {
+                shader_storage_type_preference.realize().await
+            }
+            ConcreteOrUndecidedLocation::Concrete(loc) => Some(loc),
         }
     }
 }
@@ -88,7 +93,7 @@ impl ShaderInfo {
             ShaderStorageLocation::File(shader_file_location) => {
                 let res = std::fs::write(shader_file_location.path.clone(), self.contents.clone());
                 res.is_ok()
-            },
+            }
             ShaderStorageLocation::RemoteDB(_shader_dbentry) => todo!(),
         }
     }
@@ -103,13 +108,12 @@ impl Default for ShaderInfo {
     }
 }
 
-#[derive(Default, Clone)]
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 pub struct ShaderStorageConnection {
     location: ConcreteOrUndecidedLocation,
 
     info_in_location: ShaderInfo,
-    pub currently_saving: bool
+    pub currently_saving: bool,
 }
 
 impl ShaderStorageConnection {
@@ -123,7 +127,7 @@ impl ShaderStorageConnection {
         Self {
             location,
             info_in_location: content,
-            currently_saving: false
+            currently_saving: false,
         }
     }
 
@@ -135,7 +139,10 @@ impl ShaderStorageConnection {
         !self.currently_saving && self.saving_needed(content)
     }
 
-    pub async fn save_to_new_info_if_eligible(self, new_content: ShaderInfo) -> Option<ShaderStorageConnection> {
+    pub async fn save_to_new_info_if_eligible(
+        self,
+        new_content: ShaderInfo,
+    ) -> Option<ShaderStorageConnection> {
         if !self.eligible_to_save(&new_content) {
             return None;
         }
@@ -150,7 +157,7 @@ impl ShaderStorageConnection {
         Some(ShaderStorageConnection {
             location: ConcreteOrUndecidedLocation::Concrete(concrete_loc),
             info_in_location: new_content,
-            currently_saving: false
+            currently_saving: false,
         })
     }
 }
@@ -158,11 +165,10 @@ impl ShaderStorageConnection {
 #[derive(Default)]
 pub struct ShaderStorageConnectionManager {
     pub connection: ShaderStorageConnection,
-    pub channel: Option<Receiver<Option<ShaderStorageConnection>>>
+    pub channel: Option<Receiver<Option<ShaderStorageConnection>>>,
 }
 
 impl ShaderStorageConnectionManager {
-
     fn save_process_task(&mut self, new_content: &ShaderInfo) {
         if !self.connection.eligible_to_save(new_content) {
             return;
@@ -173,7 +179,7 @@ impl ShaderStorageConnectionManager {
         self.connection.currently_saving = true;
 
         let (writer, reader) = std::sync::mpsc::channel::<Option<ShaderStorageConnection>>();
-        
+
         let fut = async move {
             let con = connection_copy;
             let res = con.save_to_new_info_if_eligible(content).await;

@@ -6,7 +6,7 @@ mod tiles_tree_stuff;
 use crate::app::{
     egui_shaderwheels_logic::RenderCtx,
     shader_content_manager::{ShaderInfo, ShaderStorageConnection, ShaderStorageConnectionManager},
-    tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
+    tiles_tree_stuff::{ShaderWheelsPane, TreeBehavior, create_basic_tree},
 };
 
 mod cfg_pane;
