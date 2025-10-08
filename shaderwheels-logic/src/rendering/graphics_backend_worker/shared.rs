@@ -8,12 +8,7 @@ use wgpu::{
     util::{TextureBlitter, TextureBlitterBuilder},
 };
 
-use crate::rendering::shader_config::ShaderLanguage;
-
-pub struct GPUAdapterInfo {
-    pub deviceref: Device,
-    pub queueref: Queue,
-}
+use crate::rendering::shader_config::{GPUAdapterInfo, ShaderLanguage};
 
 #[memoized]
 async fn preoutput_texture_view(
@@ -79,15 +74,19 @@ pub trait BackendWorker {
 }
 
 #[memoized]
-async fn module_comp(device: &Device, shader_text: &String, lang: ShaderLanguage) -> ModuleCompResult {
+async fn module_comp(
+    device: &Device,
+    shader_text: &String,
+    lang: ShaderLanguage,
+) -> ModuleCompResult {
     device.push_error_scope(wgpu::ErrorFilter::Validation);
 
     let module = device.create_shader_module(ShaderModuleDescriptor {
         label: Some("Compute Module"),
         source: match lang {
             //ShaderLanguage::Glsl => wgpu::ShaderSource::Glsl {shader: (Cow::Owned(shader_text.clone())), stage: Sh, },
-            ShaderLanguage::Wgsl => wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text.clone()))
-        } ,
+            ShaderLanguage::Wgsl => wgpu::ShaderSource::Wgsl(Cow::Owned(shader_text.clone())),
+        },
     });
 
     let errs = device.pop_error_scope().await;

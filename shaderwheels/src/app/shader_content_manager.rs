@@ -1,6 +1,7 @@
 use std::{path::PathBuf, sync::mpsc::Receiver};
+use shaderwheels_logic::rendering::legacy_graphics::process_future;
 
-use shaderwheels_logic::rendering::{self, process_future};
+use shaderwheels_logic::rendering::{self};
 
 #[derive(serde::Deserialize, serde::Serialize, Clone)]
 pub struct ShaderFileLocation {
@@ -102,7 +103,7 @@ impl ShaderInfo {
 impl Default for ShaderInfo {
     fn default() -> Self {
         Self {
-            contents: rendering::DEFAULT_COMPUTE.to_string(),
+            contents: rendering::DEFAULT_WGSL_COMPUTE.to_string(),
             name: "Untitled Shader".to_string(),
         }
     }

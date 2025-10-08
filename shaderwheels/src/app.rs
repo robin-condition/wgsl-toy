@@ -6,7 +6,7 @@ mod tiles_tree_stuff;
 use crate::app::{
     egui_shaderwheels_logic::RenderCtx,
     shader_content_manager::{ShaderInfo, ShaderStorageConnection, ShaderStorageConnectionManager},
-    tiles_tree_stuff::{ShaderWheelsPane, TreeBehavior, create_basic_tree},
+    tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
 };
 
 mod cfg_pane;
@@ -63,9 +63,10 @@ impl App {
 
         let mut rctx = egui_shaderwheels_logic::onetime_hardware_setup(cc);
 
-        rctx.dep_graph
+        //rctx.dep_graph
+        rctx.client
             .set_shader_text(state.current_shader_inf.contents.clone());
-        rctx.dep_graph.set_entry_point("main".to_string());
+        //rctx.dep_graph.set_entry_point("main".to_string());
 
         Self { inf: rctx, ..state }
     }
@@ -148,7 +149,7 @@ impl eframe::App for App {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            let mut recomp_on_invalid = self.inf.dep_graph.recompute_on_invalidation;
+            let mut recomp_on_invalid = true; //self.inf.dep_graph.recompute_on_invalidation;
             let mut behav = TreeBehavior {
                 rctx: &mut self.inf,
                 current_shader_text: &mut self.current_shader_inf.contents,
@@ -162,11 +163,11 @@ impl eframe::App for App {
             self.tree.ui(&mut behav, ui);
             let shader_changed = behav.shader_text_changed;
             let recomp_changed = behav.recompute_on_textchange_changed;
-            self.inf.dep_graph.recompute_on_invalidation = recomp_on_invalid;
+            //self.inf.dep_graph.recompute_on_invalidation = recomp_on_invalid;
 
             if self.compile_on_change && (shader_changed || recomp_changed) {
                 self.inf
-                    .dep_graph
+                    .client
                     .set_shader_text(self.current_shader_inf.contents.clone());
             }
             //Tree::new("tree", root, tiles)

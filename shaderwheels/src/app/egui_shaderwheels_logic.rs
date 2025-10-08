@@ -1,23 +1,38 @@
 use eframe::egui_wgpu::RenderState;
-use egui::{Color32, Rect, TextureId, Ui, pos2};
+use egui::{pos2, Color32, Rect, TextureId, Ui};
 use shaderwheels_logic::rendering::{
-    CompleteGraphicsDependencyGraph, CompleteGraphicsInitialConfig, GPUAdapterInfo,
+    graphics_backend_client::GraphicsClient,
+    shader_config::{GPUAdapterInfo, ShaderConfig},
 };
 use wgpu::{Extent3d, TextureDescriptor, TextureFormat};
 
 use crate::app::egui_shaderwheels_logic;
 
-#[derive(Default)]
 pub struct RenderCtx {
-    pub dep_graph: CompleteGraphicsDependencyGraph,
+    pub client: GraphicsClient,
     pub tex_id: Option<TextureId>,
+}
+
+impl Default for RenderCtx {
+    fn default() -> Self {
+        Self {
+            client: GraphicsClient::new(ShaderConfig::default()),
+            tex_id: Default::default(),
+        }
+    }
 }
 
 pub(crate) fn onetime_hardware_setup(cc: &eframe::CreationContext<'_>) -> RenderCtx {
     let renderstate = cc.wgpu_render_state.as_ref().unwrap();
     let draw_size = (512u32, 512u32);
 
-    let rendergraph = CompleteGraphicsDependencyGraph::new(CompleteGraphicsInitialConfig {
+    let mut client = GraphicsClient::new(ShaderConfig::default());
+    client.set_hardware(GPUAdapterInfo {
+        deviceref: renderstate.device.clone(),
+        queueref: renderstate.queue.clone(),
+    });
+    client.set_preout_size((512, 512));
+    /*CompleteGraphicsDependencyGraph::new(CompleteGraphicsInitialConfig {
         output_view: None,
         output_format: Some(TextureFormat::Rgba8Unorm),
         hardware: Some(GPUAdapterInfo {
@@ -29,9 +44,9 @@ pub(crate) fn onetime_hardware_setup(cc: &eframe::CreationContext<'_>) -> Render
         preoutput_size: Some((512, 512)),
         recompute_on_invalidate: true,
     });
-
+    */
     let mut rctx = RenderCtx {
-        dep_graph: rendergraph,
+        client,
         tex_id: None,
     };
 
@@ -73,8 +88,8 @@ pub(crate) fn replace_base_texture(
         eframe::wgpu::FilterMode::Linear,
     );
 
-    ctx.dep_graph.set_preoutput_size(new_size);
-    ctx.dep_graph.set_output_view(view);
+    ctx.client.set_preout_size(new_size);
+    ctx.client.set_output_view(view);
 
     ctx.tex_id = Some(tex_id);
 }
@@ -84,7 +99,7 @@ pub(crate) fn draw(rctx: &mut RenderCtx, renderstate: &RenderState, ui: &mut Ui)
     let cur_size = (rect.width() as u32, rect.height() as u32);
 
     let retexture = rctx
-        .dep_graph
+        .client
         .get_preout_size()
         .map_or(true, |f| f != cur_size);
 
@@ -97,9 +112,9 @@ pub(crate) fn draw(rctx: &mut RenderCtx, renderstate: &RenderState, ui: &mut Ui)
             min: pos2(0.0f32, 0.0f32),
             max: pos2(1.0f32, 1.0f32),
         };
-        rctx.dep_graph.mark_for_rerender();
+        //rctx.dep_graph.mark_for_rerender();
 
-        let success = rctx.dep_graph.complete();
+        let success = true; //rctx.dep_graph.complete();
 
         if success {
             ui.painter().image(*tex_id, rect, uv, Color32::WHITE);

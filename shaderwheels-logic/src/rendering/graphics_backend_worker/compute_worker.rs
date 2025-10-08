@@ -7,8 +7,9 @@ use wgpu::{
 };
 
 use crate::rendering::graphics_backend_worker::shared::{
-    BackendWorker, GPUAdapterInfo, pipeline_layout, preoutput_texture_view,
+    BackendWorker, pipeline_layout, preoutput_texture_view,
 };
+use crate::rendering::shader_config::GPUAdapterInfo;
 
 #[memoized]
 async fn pipeline(
@@ -140,6 +141,7 @@ pub struct GPUExactSurface<'a> {
     pub surface: Surface<'a>,
 }
 
+#[derive(Default)]
 pub struct ComputeWorkerPart {
     pov: preoutput_texture_view,
     pll: pipeline_layout,

@@ -1,7 +1,73 @@
-use crate::rendering::shader_config::ShaderConfig;
+use std::sync::mpsc::Sender;
+
+use wgpu::TextureView;
+
+use crate::rendering::{
+    communication::{create_pair, SettingsSenders},
+    graphics_backend_worker::{self, Worker},
+    shader_config::GPUAdapterInfo,
+    shader_config::ShaderConfig,
+};
+
+struct LocalSettings {
+    preout_size: Option<(u32, u32)>,
+    shader_cfg: ShaderConfig,
+}
 
 pub struct GraphicsClient {
     // Inputs
-    preout_size: (u32, u32),
-    shader_info: ShaderConfig,
+    senders: SettingsSenders,
+    local_settings: LocalSettings,
+}
+
+impl GraphicsClient {
+    pub fn new(shader_cfg: ShaderConfig) -> Self {
+        let (sends, recvs) = create_pair();
+
+        let worker = Worker::new(recvs);
+        worker.start_in_background();
+
+        let _ = sends.shader_content.send(shader_cfg.clone());
+
+        GraphicsClient {
+            senders: sends,
+            local_settings: LocalSettings {
+                preout_size: None,
+                shader_cfg: shader_cfg,
+            },
+        }
+    }
+
+    pub fn get_preout_size(&self) -> Option<(u32, u32)> {
+        self.local_settings.preout_size
+    }
+
+    pub fn set_preout_size(&mut self, size: (u32, u32)) {
+        if self.local_settings.preout_size != Some(size) {
+            self.local_settings.preout_size = Some(size);
+            let _ = self.senders.preout_size.send(size);
+        }
+    }
+
+    pub fn set_output_view(&self, output_view: TextureView) {
+        let _ = self.senders.output_texture_view.send(output_view);
+    }
+
+    pub fn set_hardware(&self, hw: GPUAdapterInfo) {
+        let _ = self.senders.hardware.send(hw);
+    }
+
+    pub fn set_shader_text(&mut self, text: String) {
+        self.local_settings.shader_cfg.content = text;
+        let _ = self
+            .senders
+            .shader_content
+            .send(self.local_settings.shader_cfg.clone());
+    }
+}
+
+impl Drop for GraphicsClient {
+    fn drop(&mut self) {
+        let _ = self.senders.kill.send(());
+    }
 }
