@@ -89,6 +89,9 @@ async fn module_comp(
         },
     });
 
+    //let res = module.get_compilation_info().await;
+    //res.messages[0].location.unwrap()
+
     let errs = device.pop_error_scope().await;
 
     if let Some(err) = errs {

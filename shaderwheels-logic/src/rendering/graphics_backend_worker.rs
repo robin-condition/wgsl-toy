@@ -165,7 +165,7 @@ impl Worker {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn pacing_fn() {
+    pub async fn pacing_fn() {
         
     }
 
