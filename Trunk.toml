@@ -4,3 +4,9 @@ filehash = false
 [serve]
 tls_key_path = "./localhost-key.pem"
 tls_cert_path = "./localhost.pem"
+
+[serve.headers]
+# https://github.com/trunk-rs/trunk/tree/main/examples/wasm_threads
+"cross-origin-embedder-policy"= "require-corp"
+"cross-origin-opener-policy"= "same-origin"
+"cross-origin-resource-policy"= "same-site"

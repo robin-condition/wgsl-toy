@@ -12,13 +12,13 @@ fn worker_new(url: &str) -> Worker {
 }
 
 pub fn prep_worker() {
-    let worker = worker_new("./worker_loader.js");
+    let worker = worker_new("./shaderworker_loader.js");
     let worker_clone = worker.clone();
 }
 
 // https://www.tweag.io/blog/2022-11-24-wasm-threads-and-messages/
 pub fn spawn(f: impl FnOnce() + Send + 'static) -> Result<web_sys::Worker, JsValue> {
-    let worker = web_sys::Worker::new("./worker.js")?;
+    let worker = web_sys::Worker::new("./shaderworker.js")?;
     // Double-boxing because `dyn FnOnce` is unsized and so `Box<dyn FnOnce()>` is a fat pointer.
     // But `Box<Box<dyn FnOnce()>>` is just a plain pointer, and since wasm has 32-bit pointers,
     // we can cast it to a `u32` and back.
@@ -38,6 +38,8 @@ pub fn spawn(f: impl FnOnce() + Send + 'static) -> Result<web_sys::Worker, JsVal
 use js_sys::Array;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
+
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 pub fn worker_main() {
     console_error_panic_hook::set_once();

@@ -12,9 +12,9 @@
     <title>ShaderWheels</title>
 
     <!-- config for our rust wasm binary. go to https://trunkrs.dev/assets/#rust for more customization -->
-    <link data-trunk rel="rust" data-wasm-opt="2" data-type="main" href="shaderwheels/Cargo.toml" data-bin="shaderwheels" />
-    <!-- TEST -->
-    <link data-trunk rel="rust" data-wasm-opt="2" data-type="worker" href="shaderwheels/Cargo.toml" data-bin="shaderworker" data-loader-shim data-bindgen-target="web" />
+    <!--<link data-trunk rel="rust" data-wasm-opt="2" data-type="main" href="shaderwheels/Cargo.toml" data-bin="shaderwheels" />-->
+
+
     <!-- this is the base url relative to which other urls will be constructed. trunk will insert this from the public-url option -->
     <base data-trunk-public-url />
 
@@ -124,6 +124,16 @@
 </head>
 
 <body>
+
+    <link data-trunk rel="rust" href="shaderwheels/Cargo.toml" data-wasm-opt="z" data-bin="shaderwheels" data-initializer="initializer.mjs"/>
+
+    <script type="module">
+        // you will still get the TrunkApplicationStarted event
+        addEventListener("TrunkApplicationStarted", (event) => {
+            console.log("application started - bindings:", window.wasmBindings, "event:", event);
+        });
+    </script>
+
     <!-- The WASM code will resize the canvas dynamically -->
     <!-- the id is hardcoded in main.rs . so, make sure both match. -->
     <canvas id="the_canvas_id"></canvas>

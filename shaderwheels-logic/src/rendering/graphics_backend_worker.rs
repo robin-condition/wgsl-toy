@@ -148,9 +148,13 @@ impl Worker {
 
     #[cfg(target_arch = "wasm32")]
     pub fn start_in_background(self) {
-        worker_manager::spawn(|| {
-            loop {println!("HI");}
-        }).unwrap();
+
+        log::info!("Available parallelism: lol");//{:?}, rayon::available_parallelism());
+        
+        rayon::spawn(|| {
+            
+            loop {log::info!("HI");}
+        });
         //wasm_bindgen_futures::spawn_local(self.longrunning_task());
     }
 

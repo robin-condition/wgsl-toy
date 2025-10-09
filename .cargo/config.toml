@@ -1,0 +1,7 @@
+# https://docs.rs/wasm-bindgen-rayon/latest/wasm_bindgen_rayon/
+
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+atomics,+bulk-memory"]
+
+[unstable]
+build-std = ["panic_abort", "std"]
