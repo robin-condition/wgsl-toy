@@ -16,6 +16,9 @@ mod compute_worker;
 mod fragment_worker;
 mod shared;
 
+#[cfg(target_arch="wasm32")]
+pub mod worker_manager;
+
 enum ArbitraryWorker {
     ComputeWorker(ComputeWorkerPart),
     FragmentWorker(),
@@ -145,7 +148,10 @@ impl Worker {
 
     #[cfg(target_arch = "wasm32")]
     pub fn start_in_background(self) {
-        wasm_bindgen_futures::spawn_local(self.longrunning_task());
+        worker_manager::spawn(|| {
+            loop {println!("HI");}
+        }).unwrap();
+        //wasm_bindgen_futures::spawn_local(self.longrunning_task());
     }
 
     #[cfg(not(target_arch = "wasm32"))]

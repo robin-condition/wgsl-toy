@@ -3,6 +3,17 @@ name = "shaderwheels"
 version = "0.1.0"
 edition = "2024"
 
+default-run = "shaderwheels"
+
+[[bin]]
+name = "shaderwheels"
+path = "src/main.rs"
+
+
+[[bin]]
+name = "shaderworker"
+path = "src/bin/worker.rs"
+
 [dependencies]
 shaderwheels-logic = {path="../shaderwheels-logic"}
 openidconnect = "4.0.1"
