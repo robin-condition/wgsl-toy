@@ -29,8 +29,7 @@ fn main() -> eframe::Result {
     )
 }
 
-//#[cfg(target_arch="wasm32")]
-//pub use shaderwheels_logic::rendering::graphics_backend_worker::worker_manager::init_thread_pool;
+
 
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]

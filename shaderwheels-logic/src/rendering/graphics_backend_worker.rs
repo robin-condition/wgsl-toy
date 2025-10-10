@@ -89,6 +89,10 @@ pub struct Worker {
     when_send_comp_errs: VersionedInputs<1>,
 }
 
+unsafe impl Send for Worker {
+
+}
+
 impl Worker {
 
     pub fn new(recvs: SettingsReceivers) -> Self {
@@ -105,6 +109,7 @@ impl Worker {
 
     fn read_recvrs(&mut self) {
         if let Some(cfg) = latest_from_receiver(&self.settings_recvrs.shader_content) {
+            log::info!("TEXT CCHANGE");
             self.settings.shader_lang.set_to_next(Some(cfg.language));
             self.settings
                 .shader_text
@@ -150,10 +155,13 @@ impl Worker {
     pub fn start_in_background(self) {
 
         log::info!("Available parallelism: lol");//{:?}, rayon::available_parallelism());
+
+        let my_box = Box::new(self);
         
-        wasm_thread::spawn(|| {
-            
-            loop {log::info!("HI");}
+        wasm_thread::spawn(move || {
+            let box2 = my_box;
+            pollster::block_on(box2.longrunning_task());
+            //loop {log::info!("HI");}
         });
         //wasm_bindgen_futures::spawn_local(self.longrunning_task());
     }
