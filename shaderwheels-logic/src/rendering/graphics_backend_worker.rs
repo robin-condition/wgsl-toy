@@ -151,7 +151,7 @@ impl Worker {
 
         log::info!("Available parallelism: lol");//{:?}, rayon::available_parallelism());
         
-        rayon::spawn(|| {
+        wasm_thread::spawn(|| {
             
             loop {log::info!("HI");}
         });

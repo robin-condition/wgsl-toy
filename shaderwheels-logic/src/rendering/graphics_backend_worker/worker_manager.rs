@@ -39,8 +39,6 @@ use js_sys::Array;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{DedicatedWorkerGlobalScope, MessageEvent};
 
-pub use wasm_bindgen_rayon::init_thread_pool;
-
 pub fn worker_main() {
     console_error_panic_hook::set_once();
     web_sys::console::log_1(&"worker starting".into());
