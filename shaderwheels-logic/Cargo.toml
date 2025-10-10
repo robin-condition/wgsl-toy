@@ -13,6 +13,8 @@ cardigan-incremental = {git="https://github.com/robin-condition/cardigan.git"}
 async-std = "1.13.2"
 console_error_panic_hook = "0.1.7"
 wasm_thread = "0.3.3"
+wasm-bindgen-rayon = "1.3.0"
+rayon = "1.11.0"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.50"

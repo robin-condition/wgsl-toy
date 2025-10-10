@@ -158,10 +158,10 @@ impl Worker {
 
         let my_box = Box::new(self);
         
-        wasm_thread::spawn(move || {
-            let box2 = my_box;
-            pollster::block_on(box2.longrunning_task());
-            //loop {log::info!("HI");}
+        rayon::spawn(move || {
+            //let box2 = my_box;
+            //pollster::block_on(box2.longrunning_task());
+            loop {log::info!("HI");}
         });
         //wasm_bindgen_futures::spawn_local(self.longrunning_task());
     }

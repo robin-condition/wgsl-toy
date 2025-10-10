@@ -1,5 +1,10 @@
+# https://github.com/GoogleChromeLabs/wasm-bindgen-rayon/issues/11
 [build]
 filehash = false
+pattern_script = '''
+<script type="module">import init, { initThreadPool} from '{base}{js}';await init('{base}{wasm}'); await initThreadPool(1);</script>
+'''
+#navigator.hardwareConcurrency
 
 [serve]
 tls_key_path = "./localhost-key.pem"
