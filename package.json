@@ -2,7 +2,7 @@
   "name": "shaderwheels",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "private": "true",
   "scripts": {
     "build": "webpack",
     "serve": "webpack serve"
