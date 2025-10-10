@@ -4324,6 +4324,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shaderwheels-logic",
+ "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
  "wgpu",

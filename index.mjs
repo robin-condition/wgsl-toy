@@ -1,3 +1,5 @@
+// https://github.com/wasm-bindgen/wasm-bindgen/tree/main/examples
+
 // Use ES module import syntax to import functionality from the module
       // that we have compiled.
       //
@@ -5,7 +7,8 @@
       // will "boot" the module and make it ready to use. Currently browsers
       // don't support natively imported WebAssembly as an ES module, but
       // eventually the manual initialization won't be required!
-      import init, { add } from './shaderwheels.js';
+      //let t = import("./pkg");
+      import init, { initThreadPool } from './shaderwheels/pkg/shaderwheels.js';
 
       async function run() {
         // First up we need to actually load the Wasm file, so we use the
