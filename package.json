@@ -1,0 +1,29 @@
+{
+  "name": "shaderwheels",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack",
+    "serve": "webpack serve"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/robin-condition/wgsl-toy.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/robin-condition/wgsl-toy/issues"
+  },
+  "homepage": "https://github.com/robin-condition/wgsl-toy#readme",
+  "devDependencies": {
+    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
+    "html-webpack-plugin": "^5.6.4",
+    "webpack": "^5.102.1",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.2"
+  }
+}

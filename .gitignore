@@ -5,3 +5,5 @@
 /codemirror-wgsl/target
 localhost-key.pem
 localhost.pem
+/node_modules
+/pkg
