@@ -149,7 +149,7 @@ pub struct ComputeWorkerPart {
     bgl: bind_group_layout,
     bg: bind_group,
     preout_comp: GeneralVersionedComp<4>,
-    rendered_comp: VersionedInputs<3>,
+    rendered_comp: VersionedInputs<2>,
 }
 
 impl ComputeWorkerPart {
@@ -167,7 +167,7 @@ impl BackendWorker for ComputeWorkerPart {
         entry_point: &Versioned<&String>,
         blitter: &Versioned<&TextureBlitter>,
         render_output_on_invalidated: bool,
-        output_view: &Versioned<&TextureView>,
+        output_view: &Option<&TextureView>,
     ) -> bool {
         let uses = wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST
@@ -196,7 +196,7 @@ impl BackendWorker for ComputeWorkerPart {
             .await
             .my_as_ref();
 
-        if render_output_on_invalidated {
+        if render_output_on_invalidated && output_view.is_some() {
             let recompute_preout = self.preout_comp.check_and_update(&[
                 *preout_size.version(),
                 *pipeline.version(),
@@ -207,7 +207,6 @@ impl BackendWorker for ComputeWorkerPart {
             let rerender_out = self.rendered_comp.check_and_update(&[
                 self.preout_comp.get_version(),
                 *blitter.version(),
-                *output_view.version(),
             ]);
 
             if rerender_out || recompute_preout {
@@ -216,7 +215,7 @@ impl BackendWorker for ComputeWorkerPart {
                     *bindgroup.get_value(),
                     *pipeline.get_value(),
                     *blitter.get_value(),
-                    *output_view.get_value(),
+                    *output_view,
                     preout_size.get_value(),
                     *preout_view.get_value(),
                     recompute_preout,

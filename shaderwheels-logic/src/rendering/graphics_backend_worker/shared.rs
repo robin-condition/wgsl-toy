@@ -69,7 +69,7 @@ pub trait BackendWorker {
         entry_point: &Versioned<&String>,
         blitter: &Versioned<&TextureBlitter>,
         render_output_on_invalidated: bool,
-        output_view: &Versioned<&TextureView>,
+        output_view: &Option<&TextureView>,
     ) -> bool;
 }
 

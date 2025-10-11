@@ -3,10 +3,9 @@ use std::sync::mpsc::Sender;
 use wgpu::TextureView;
 
 use crate::rendering::{
-    communication::{create_pair, SettingsSenders},
+    communication::{create_backtalk_pair, create_pair, BacktalkReceivers, SettingsSenders},
     graphics_backend_worker::{self, Worker},
-    shader_config::GPUAdapterInfo,
-    shader_config::ShaderConfig,
+    shader_config::{GPUAdapterInfo, ShaderConfig},
 };
 
 struct LocalSettings {
@@ -18,13 +17,15 @@ pub struct GraphicsClient {
     // Inputs
     senders: SettingsSenders,
     local_settings: LocalSettings,
+    receivers: BacktalkReceivers,
 }
 
 impl GraphicsClient {
     pub fn new(shader_cfg: ShaderConfig) -> Self {
         let (sends, recvs) = create_pair();
+        let (b_sends, b_recvs) = create_backtalk_pair();
 
-        let worker = Worker::new(recvs);
+        let worker = Worker::new(recvs, b_sends);
         worker.start_in_background();
 
         let _ = sends.shader_content.send(shader_cfg.clone());
@@ -35,6 +36,7 @@ impl GraphicsClient {
                 preout_size: None,
                 shader_cfg: shader_cfg,
             },
+            receivers: b_recvs,
         }
     }
 
@@ -63,6 +65,10 @@ impl GraphicsClient {
             .senders
             .shader_content
             .send(self.local_settings.shader_cfg.clone());
+    }
+
+    pub fn get_should_swap(&mut self) -> bool {
+        self.receivers.render_success.try_recv().is_ok()
     }
 }
 

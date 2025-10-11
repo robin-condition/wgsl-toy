@@ -42,3 +42,26 @@ pub fn create_pair() -> (SettingsSenders, SettingsReceivers) {
         },
     )
 }
+
+macro_rules! backtalk_side {
+    ($name:ident, $kind:ident) => {
+        pub struct $name {
+            pub render_success: $kind<()>,
+        }
+    };
+}
+backtalk_side! {BacktalkReceivers, Receiver}
+backtalk_side! {BacktalkSenders, Sender}
+
+pub fn create_backtalk_pair() -> (BacktalkSenders, BacktalkReceivers) {
+    let (render_send, render_recv) = mpsc::channel::<()>();
+
+    (
+        BacktalkSenders {
+            render_success: render_send,
+        },
+        BacktalkReceivers {
+            render_success: render_recv,
+        },
+    )
+}

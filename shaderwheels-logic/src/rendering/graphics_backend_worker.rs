@@ -6,10 +6,10 @@ use wasm_bindgen_futures::wasm_bindgen::prelude::Closure;
 use wgpu::{TextureFormat, TextureView};
 
 use crate::rendering::{
-    communication::SettingsReceivers, graphics_backend_worker::{
+    communication::{BacktalkSenders, SettingsReceivers}, graphics_backend_worker::{
         compute_worker::ComputeWorkerPart,
         shared::{blitter, module_comp, BackendWorker},
-    }, shader_config::{ShaderConfig, ShaderLanguage, GPUAdapterInfo}
+    }, shader_config::{GPUAdapterInfo, ShaderConfig, ShaderLanguage}
 };
 
 mod compute_worker;
@@ -30,7 +30,7 @@ impl BackendWorker for ArbitraryWorker {
         entry_point: &Versioned<&String>,
         blitter: &Versioned<&wgpu::util::TextureBlitter>,
         render_output_on_invalidated: bool,
-        output_view: &Versioned<&TextureView>,
+        output_view: &Option<&TextureView>,
     ) -> bool {
         match self {
             ArbitraryWorker::ComputeWorker(compute_worker_part) => {
@@ -70,12 +70,13 @@ pub struct VersionedSettings {
     pub shader_lang: Versioned<ShaderLanguage>,
     pub preout_size: Versioned<(u32, u32)>,
     pub hardware: Versioned<GPUAdapterInfo>,
-    pub output_texture_view: Versioned<TextureView>,
+    pub output_texture_view: Option<TextureView>,
     pub output_texture_format: Versioned<TextureFormat>,
 }
 
 pub struct Worker {
     settings_recvrs: SettingsReceivers,
+    backtalk_senders: BacktalkSenders,
     settings: VersionedSettings,
     backend: ArbitraryWorker,
 
@@ -88,9 +89,10 @@ pub struct Worker {
 
 impl Worker {
 
-    pub fn new(recvs: SettingsReceivers) -> Self {
+    pub fn new(recvs: SettingsReceivers, sends: BacktalkSenders) -> Self {
         Self {
             settings_recvrs: recvs,
+            backtalk_senders: sends,
             settings: VersionedSettings::default(),
             backend: ArbitraryWorker::ComputeWorker(ComputeWorkerPart::default()),
             render_on_invalid: true,
@@ -117,8 +119,7 @@ impl Worker {
             latest_from_receiver(&self.settings_recvrs.output_texture_view)
         {
             self.settings
-                .output_texture_view
-                .set_to_next(Some(out_view));
+                .output_texture_view = Some(out_view);
         }
 
         if let Some(preout_size) = latest_from_receiver(&self.settings_recvrs.preout_size) {
@@ -211,12 +212,14 @@ impl Worker {
                 &Versioned::default().next(Some(&"main".to_string())),
                 &blit,
                 self.render_on_invalid,
-                &self.settings.output_texture_view.my_as_ref(),
+                &self.settings.output_texture_view.as_ref(),
             )
             .await;
 
         if rerendered {
             // TODO: Send render notif
+            self.settings.output_texture_view = None;
+            let _ = self.backtalk_senders.render_success.send(());
         }
     }
 }
