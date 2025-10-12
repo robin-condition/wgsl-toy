@@ -6,7 +6,7 @@ mod tiles_tree_stuff;
 use crate::app::{
     egui_shaderwheels_logic::RenderCtx,
     shader_content_manager::{ShaderInfo, ShaderStorageConnection, ShaderStorageConnectionManager},
-    tiles_tree_stuff::{ShaderWheelsPane, TreeBehavior, create_basic_tree},
+    tiles_tree_stuff::{create_basic_tree, ShaderWheelsPane, TreeBehavior},
 };
 
 mod cfg_pane;
@@ -101,16 +101,18 @@ impl eframe::App for App {
         // Put your widgets into a `SidePanel`, `TopBottomPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        let changed = self
-            .storage_manager
-            .connection
-            .saving_needed(&self.current_shader_inf);
-        let viewport_title = if changed {
-            self.current_shader_inf.name.clone() + "*"
-        } else {
-            self.current_shader_inf.name.clone()
-        } + " - ShaderWheels";
-        ctx.send_viewport_cmd(ViewportCommand::Title(viewport_title));
+        if !_frame.is_web() {
+            let changed = self
+                .storage_manager
+                .connection
+                .saving_needed(&self.current_shader_inf);
+            let viewport_title = if changed {
+                self.current_shader_inf.name.clone() + "*"
+            } else {
+                self.current_shader_inf.name.clone()
+            } + " - ShaderWheels";
+            ctx.send_viewport_cmd(ViewportCommand::Title(viewport_title));
+        }
 
         let mut saved = false;
 
@@ -120,10 +122,11 @@ impl eframe::App for App {
             }
         });
 
+        /*
         if saved {
             // Saving should happen here!
             self.storage_manager.start_save(&self.current_shader_inf);
-        }
+        }*/
 
         self.storage_manager.update();
 
