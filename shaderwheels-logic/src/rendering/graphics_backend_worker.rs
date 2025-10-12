@@ -6,10 +6,12 @@ use wasm_bindgen_futures::wasm_bindgen::prelude::Closure;
 use wgpu::{TextureFormat, TextureView};
 
 use crate::rendering::{
-    communication::{BacktalkSenders, SettingsReceivers}, graphics_backend_worker::{
+    communication::{BacktalkSenders, SettingsReceivers},
+    graphics_backend_worker::{
         compute_worker::ComputeWorkerPart,
-        shared::{blitter, module_comp, BackendWorker},
-    }, shader_config::{GPUAdapterInfo, ShaderConfig, ShaderLanguage}
+        shared::{BackendWorker, blitter, module_comp},
+    },
+    shader_config::{GPUAdapterInfo, ShaderConfig, ShaderLanguage},
 };
 
 mod compute_worker;
@@ -51,7 +53,6 @@ impl BackendWorker for ArbitraryWorker {
     }
 }
 
-
 fn latest_from_receiver<T>(recvr: &Receiver<T>) -> Option<T> {
     if let Ok(mut val) = recvr.try_recv() {
         while let Ok(new_val) = recvr.try_recv() {
@@ -88,7 +89,6 @@ pub struct Worker {
 }
 
 impl Worker {
-
     pub fn new(recvs: SettingsReceivers, sends: BacktalkSenders) -> Self {
         Self {
             settings_recvrs: recvs,
@@ -115,11 +115,8 @@ impl Worker {
             self.settings.hardware.set_to_next(Some(hw));
         }
 
-        if let Some(out_view) =
-            latest_from_receiver(&self.settings_recvrs.output_texture_view)
-        {
-            self.settings
-                .output_texture_view = Some(out_view);
+        if let Some(out_view) = latest_from_receiver(&self.settings_recvrs.output_texture_view) {
+            self.settings.output_texture_view = Some(out_view);
         }
 
         if let Some(preout_size) = latest_from_receiver(&self.settings_recvrs.preout_size) {
@@ -134,9 +131,8 @@ impl Worker {
 
     async fn longrunning_task(mut self) {
         loop {
-
             Self::pacing_fn().await;
-            
+
             if let Ok(()) = self.settings_recvrs.kill.try_recv() {
                 return;
             }
@@ -156,7 +152,6 @@ impl Worker {
         });
     }
 
-
     #[cfg(target_arch = "wasm32")]
     pub async fn pacing_fn() {
         use std::time::Duration;
@@ -166,9 +161,7 @@ impl Worker {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub async fn pacing_fn() {
-        
-    }
+    pub async fn pacing_fn() {}
 
     async fn step(&mut self) {
         self.read_recvrs();

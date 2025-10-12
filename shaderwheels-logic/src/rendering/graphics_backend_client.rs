@@ -3,7 +3,7 @@ use std::sync::mpsc::Sender;
 use wgpu::TextureView;
 
 use crate::rendering::{
-    communication::{create_backtalk_pair, create_pair, BacktalkReceivers, SettingsSenders},
+    communication::{BacktalkReceivers, SettingsSenders, create_backtalk_pair, create_pair},
     graphics_backend_worker::{self, Worker},
     shader_config::{GPUAdapterInfo, ShaderConfig},
 };

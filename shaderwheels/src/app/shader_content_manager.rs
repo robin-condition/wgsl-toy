@@ -1,5 +1,5 @@
-use std::{path::PathBuf, sync::mpsc::Receiver};
 use shaderwheels_logic::rendering::legacy_graphics::process_future;
+use std::{path::PathBuf, sync::mpsc::Receiver};
 
 use shaderwheels_logic::rendering::{self};
 

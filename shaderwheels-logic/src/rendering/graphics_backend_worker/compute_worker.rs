@@ -204,10 +204,9 @@ impl BackendWorker for ComputeWorkerPart {
                 *blitter.version(),
             ]);
 
-            let rerender_out = self.rendered_comp.check_and_update(&[
-                self.preout_comp.get_version(),
-                *blitter.version(),
-            ]);
+            let rerender_out = self
+                .rendered_comp
+                .check_and_update(&[self.preout_comp.get_version(), *blitter.version()]);
 
             if rerender_out || recompute_preout {
                 let res = render_output(
