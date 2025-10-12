@@ -4,8 +4,6 @@ pub mod communication;
 pub mod graphics_backend_client;
 pub mod graphics_backend_worker;
 
-pub mod legacy_graphics;
-
 pub const DEFAULT_WGSL_COMPUTE: &str = include_str!("compute.wgsl");
 pub const WGSL_ENTRY: &str = "main";
 

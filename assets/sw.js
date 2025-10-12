@@ -2,8 +2,8 @@ var cacheName = 'shaderwheels-pwa';
 var filesToCache = [
   './',
   './index.html',
-  './wgsl_toy.js',
-  './wgsl_toy_bg.wasm',
+  './shaderwheels.js',
+  './shaderwheels_bg.wasm',
 ];
 
 /* Start the service worker and cache all of the app's content */

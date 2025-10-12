@@ -1,4 +1,3 @@
-use shaderwheels_logic::rendering::legacy_graphics::process_future;
 use std::{path::PathBuf, sync::mpsc::Receiver};
 
 use shaderwheels_logic::rendering::{self};
@@ -188,7 +187,8 @@ impl ShaderStorageConnectionManager {
             let _ = writer.send(res);
         };
 
-        process_future(fut);
+        // TODO: Probably switch to multi
+        //process_future(fut);
 
         self.channel = Some(reader);
     }
