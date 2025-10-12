@@ -12,6 +12,7 @@ wgpu = {version="25.0.2", features=["glsl"]}
 cardigan-incremental = {git="https://github.com/robin-condition/cardigan.git"}
 async-std = "1.13.2"
 bytemuck = "1.24.0"
+log = "0.4.28"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen-futures = "0.4.50"

@@ -95,6 +95,7 @@ async fn module_comp(
     let errs = device.pop_error_scope().await;
 
     if let Some(err) = errs {
+        log::info!("{:?}", err);
         Err(err)
     } else {
         Ok(module)

@@ -9,9 +9,10 @@ use crate::rendering::{
     communication::{BacktalkSenders, SettingsReceivers},
     graphics_backend_worker::{
         compute_worker::ComputeWorkerPart,
-        shared::{BackendWorker, blitter, module_comp},
+        fragment_worker::FragmentWorkerPart,
+        shared::{blitter, module_comp, BackendWorker},
     },
-    shader_config::{GPUAdapterInfo, ShaderConfig, ShaderLanguage},
+    shader_config::{GPUAdapterInfo, ShaderConfig, ShaderLanguage}, WGSL_ENTRY,
 };
 
 mod compute_worker;
@@ -20,7 +21,7 @@ mod shared;
 
 enum ArbitraryWorker {
     ComputeWorker(ComputeWorkerPart),
-    FragmentWorker(),
+    FragmentWorker(FragmentWorkerPart),
 }
 
 impl BackendWorker for ArbitraryWorker {
@@ -48,7 +49,19 @@ impl BackendWorker for ArbitraryWorker {
                     )
                     .await
             }
-            ArbitraryWorker::FragmentWorker() => todo!(),
+            ArbitraryWorker::FragmentWorker(fragment_worker_part) => {
+                fragment_worker_part
+                    .step(
+                        preout_size,
+                        hardware,
+                        module,
+                        entry_point,
+                        blitter,
+                        render_output_on_invalidated,
+                        output_view,
+                    )
+                    .await
+            }
         }
     }
 }
@@ -94,7 +107,8 @@ impl Worker {
             settings_recvrs: recvs,
             backtalk_senders: sends,
             settings: VersionedSettings::default(),
-            backend: ArbitraryWorker::ComputeWorker(ComputeWorkerPart::default()),
+            backend: //ArbitraryWorker::ComputeWorker(ComputeWorkerPart::default()),
+            ArbitraryWorker::FragmentWorker(FragmentWorkerPart::default()),
             render_on_invalid: true,
             blitter: Default::default(),
             mod_comp: Default::default(),
@@ -202,7 +216,7 @@ impl Worker {
                 &self.settings.preout_size,
                 &self.settings.hardware.my_as_ref(),
                 &successful_module,
-                &Versioned::default().next(Some(&"main".to_string())),
+                &Versioned::default().next(Some(&WGSL_ENTRY.to_string())),
                 &blit,
                 self.render_on_invalid,
                 &self.settings.output_texture_view.as_ref(),

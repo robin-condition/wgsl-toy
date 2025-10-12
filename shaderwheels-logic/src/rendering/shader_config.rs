@@ -23,10 +23,12 @@ pub struct ShaderConfig {
 impl Default for ShaderConfig {
     fn default() -> Self {
         Self {
-            content: crate::rendering::DEFAULT_WGSL_COMPUTE.to_string(),
+            //content: crate::rendering::DEFAULT_WGSL_COMPUTE.to_string(),
+            content: crate::rendering::DEFAULT_WGSL_FRAG.to_string(),
             language: ShaderLanguage::Wgsl,
             // Should be switched to general once support exists
-            backend: ShaderBackend::FullCompute,
+            //backend: ShaderBackend::FullCompute,
+            backend: ShaderBackend::FullFragment,
         }
     }
 }
