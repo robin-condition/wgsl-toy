@@ -754,7 +754,7 @@ dependencies = [
 [[package]]
 name = "cardigan-incremental"
 version = "0.1.0"
-source = "git+https://github.com/robin-condition/cardigan.git#b0f3128df7eb12949175a6658cb4365a8064a8ee"
+source = "git+https://github.com/robin-condition/cardigan.git#00967568260ccede7bbc0ead89bb6dd89a4a38c2"
 dependencies = [
  "cardigan-macros",
 ]
@@ -762,7 +762,7 @@ dependencies = [
 [[package]]
 name = "cardigan-macros"
 version = "0.1.0"
-source = "git+https://github.com/robin-condition/cardigan.git#b0f3128df7eb12949175a6658cb4365a8064a8ee"
+source = "git+https://github.com/robin-condition/cardigan.git#00967568260ccede7bbc0ead89bb6dd89a4a38c2"
 dependencies = [
  "proc-macro2",
  "quote",
