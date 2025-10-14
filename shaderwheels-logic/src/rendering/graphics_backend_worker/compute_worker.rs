@@ -196,6 +196,7 @@ impl BackendWorker for ComputeWorkerPart {
             .await
             .my_as_ref();
 
+        // TODO: Refactor all this common shape.
         if render_output_on_invalidated && output_view.is_some() {
             let recompute_preout = self.preout_comp.check_and_update(&[
                 *preout_size.version(),

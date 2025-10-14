@@ -311,6 +311,7 @@ impl BackendWorker for FragmentWorkerPart {
 
         let unif_vals = self.uv.compute(hardware, &bf, preout_size).await;
 
+        // TODO: Refactor all this common shape, and fix (small) versioning bug.
         if render_output_on_invalidated && output_view.is_some() {
             let recompute_preout = self.preout_comp.check_and_update(&[
                 *preout_size.version(),
