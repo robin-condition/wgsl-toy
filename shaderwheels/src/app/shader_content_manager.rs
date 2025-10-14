@@ -102,8 +102,8 @@ impl ShaderInfo {
 impl Default for ShaderInfo {
     fn default() -> Self {
         Self {
-            contents: //rendering::DEFAULT_WGSL_FRAG.to_string(),
-            rendering::DEFAULT_WGSL_COMPUTE.to_string(),
+            contents: rendering::DEFAULT_WGSL_FRAG.to_string(),
+            //rendering::DEFAULT_WGSL_COMPUTE.to_string(),
             name: "Untitled Shader".to_string(),
         }
     }
